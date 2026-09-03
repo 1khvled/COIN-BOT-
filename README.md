@@ -24,7 +24,23 @@ collecting), verifies the balance actually increased, and notifies you per accou
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
 - Your Telegram numeric chat ID from [@userinfobot](https://t.me/userinfobot)
 
-## 2. Install
+## 2. One-command setup
+
+**Windows (CMD):**
+```bat
+setup.bat
+```
+
+**Linux / macOS:**
+```bash
+chmod +x setup.sh && ./setup.sh
+```
+
+That's it — it installs dependencies, downloads headless Chromium, asks for your
+`BOT_TOKEN` + chat ID on first run (generating the encryption secret for you), and
+starts the bot. Then send `/start` to your bot in Telegram. ✅
+
+## 2b. Manual install (if you prefer each step)
 
 ```bash
 git clone <your-repo-url> aliexpress-coin-bot

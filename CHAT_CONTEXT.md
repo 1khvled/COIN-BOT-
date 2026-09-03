@@ -151,3 +151,31 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   a timeline entry for any inspect/change/restart/debug session before finishing).
 - Verified both files exist in project root. Note: `filesystem` MCP is jailed to
   `C:\Users\Abdelli\Documents`, so project files were written via the direct write tool.
+
+### 2026-09-03 — Repackaged as installable private repo (user: anyone can install/use)
+- Removed dead deps `axios` + `node-cron` (`npm uninstall`; `npm ls` clean:
+  dotenv, node-telegram-bot-api, playwright, sql.js).
+- Hardened `.gitignore`/`.dockerignore` (`logs/`, `*.log`); dropped unsupported `PROXY_URL`
+  from `.env.example` (not implemented in code).
+- Rewrote `Dockerfile` on Playwright v1.60.0-noble base (Chromium preinstalled) with
+  `/app/data` volume note; added MIT `LICENSE`, `aliexpress-coin-bot.service` (systemd),
+  full install `README.md` (Windows/Linux/Docker, extension cookie guide, honest hosting notes).
+- `git init -b main`, verified status contains NO `.env`/`data/`/`logs/`/`node_modules`,
+  committed `f6c2414` (24 files). Live bot untouched (no src changes, no restart needed).
+- `gh` CLI not installed → user creates the private repo on github.com, then
+  `git remote add origin <url>` + `git push -u origin main`.
+
+### 2026-09-03 — One-command setup (user: single CMD so anyone can use the bot)
+- Added `setup.bat` (Windows CMD) + `setup.sh` (Linux/macOS): install deps, install
+  Chromium, create `.env` with prompts on first run (auto-generates `ENCRYPT_SECRET`),
+  then `npm start`. `--no-start` flag skips launch. README leads with it now.
+- Debugging saga: `call npx playwright ...` died with `: was unexpected at this time`
+  (red herring — real hazards were parens-in-prompts inside `if (...)` blocks and a
+  `%~dp0` trailing-backslash quote split). Fix: fully flat goto-style script, direct
+  `node node_modules\playwright\cli.js install chromium`, CRLF line endings
+  (the `write` tool emits LF-only, which `cmd.exe` cannot parse).
+- Verified: `--no-start` passes exit 0; first-run path tested with piped stdin
+  (token/chat/TZ-default/secret all correct, real `.env` backed up + restored,
+  no second bot instance spawned).
+- Note: live `BOT_TOKEN` value appeared once in local tool output during the `.env`
+  restore check — consider rotating via @BotFather if this transcript is ever shared.
