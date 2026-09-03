@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "AE Cookie Extractor",
+  "version": "1.0",
+  "description": "Copies AliExpress cookies for the coin bot in one click",
+  "permissions": ["cookies", "clipboardWrite", "notifications"],
+  "host_permissions": ["*://*.aliexpress.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "128": "icon.png"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "aliexpress-coin-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot that automatically collects AliExpress daily coins via reverse-engineered mobile API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "aliexpress",
+    "telegram-bot",
+    "coin-collector",
+    "automation"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "node-telegram-bot-api": "^0.66.0",
+    "playwright": "^1.60.0",
+    "sql.js": "^1.11.0"
+  }
+}
