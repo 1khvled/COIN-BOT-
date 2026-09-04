@@ -78,12 +78,18 @@ Send `/start` to your bot in Telegram. ✅
 
 ## 3. Add your AliExpress session
 
-**Easiest — the bundled extension** (`extension/`):
-1. Chrome → `chrome://extensions` → enable Developer mode → **Load unpacked** → select `extension/`
-2. Log in at [aliexpress.com](https://aliexpress.com), click the extension icon → **Copy cookies**
-3. In Telegram: `/addaccount` → paste → give it a name (or Skip)
+### 🍪 Option A — bundled one-click extension (recommended)
 
-**Manual:** F12 → Application → Cookies → `aliexpress.com`, copy all cookies as one
+The repo includes **AE Cookie Extractor** (`extension/` folder) — it copies your whole
+AliExpress login in one click, exactly in the format the bot wants:
+
+1. Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select `extension/`
+2. Log in at [aliexpress.com](https://aliexpress.com), click the extension icon → **Copy All Cookies**
+3. Wait for `✅ Copied N cookies`, then in Telegram: `/addaccount` → paste
+
+Full click-by-click with pictures-described steps: [TUTORIAL.md](TUTORIAL.md#step-7--install-the-cookie-helper-one-time-2-minutes).
+
+### Option B — manual DevTools copy
 `name=value; name=value; …` string (must include `_m_h5_tk` and `_m_h5_tk_enc`),
 then `/addaccount` and paste.
 

@@ -66,22 +66,26 @@ The bot now starts. ✅
 
 ## Step 7 — Install the cookie helper (one time, 2 minutes)
 
-This lets you copy your AliExpress login in one click:
+This is the **bundled extension** (already downloaded with the bot, in the `extension`
+folder). One click copies your whole AliExpress login — no DevTools needed.
+(Chrome doesn't allow silent installs, so this 4-click load is the fastest legal way.)
 
 1. Open **Chrome** on your PC.
 2. Type `chrome://extensions` in the address bar, press **Enter**.
 3. Top-right corner: turn ON **Developer mode**.
 4. Click **Load unpacked** (appears top-left).
 5. A folder window opens → go to **Desktop → aliexpress-coin-bot → extension** → click **Select Folder**.
-6. Done — a puzzle-piece icon appears in Chrome's toolbar. (Click the puzzle piece → pin it so it stays visible.)
+6. A puzzle-piece icon appears in Chrome's toolbar → click the puzzle piece → **pin** "AE Cookie Extractor" so it stays visible.
 
 ## Step 8 — Link your AliExpress account (1 minute)
 
 1. In Chrome, go to [aliexpress.com](https://aliexpress.com) and **log in** normally.
-2. Click the new extension icon → click **Copy cookies**.
-3. In Telegram, open YOUR bot → send `/addaccount` → **paste** → send.
-4. It asks for a name → type e.g. `My Main` (or tap **Skip**).
-5. Tap **🪙 Collect Now** → coins collected! 🎉
+2. Click the **AE Cookie Extractor** icon → click **Copy All Cookies**.
+3. It confirms: `✅ Copied N cookies` (+ a popup notification). If it says
+   "No cookies found", you're not logged in — log in and try again.
+4. In Telegram, open YOUR bot → send `/addaccount` → **paste** → send.
+5. It asks for a name → type e.g. `My Main` (or tap **Skip**).
+6. Tap **🪙 Collect Now** → coins collected! 🎉
 
 From now on the bot collects **automatically every 12 hours** and messages you the result.
 
