@@ -218,3 +218,10 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   `C:\Users\Abdelli` → `C:\Users\<you>`. Re-verified 0 hits for all patterns.
 - Proven anonymous `git ls-remote` succeeds → anyone can clone, no login.
 - PAT tested STILL ACTIVE — revoke reminder repeated.
+
+### 2026-09-04 — Cookie extension spotlight (user: is it included? they must know it)
+- Verified `extension/` is real/working MV3 (Copy All Cookies → count + notification).
+- README: dedicated Option-A section + tutorial link; TUTORIAL steps fixed to exact
+  button text + no-cookies troubleshooting; added `extension/README.md`.
+- Chrome forbids silent pre-installs — Load unpacked (4 clicks) is the fastest legal
+  path, now unmissable in all three docs. Committed `8f33d8d`, pushed.
