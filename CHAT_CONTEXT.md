@@ -179,3 +179,13 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   no second bot instance spawned).
 - Note: live `BOT_TOKEN` value appeared once in local tool output during the `.env`
   restore check — consider rotating via @BotFather if this transcript is ever shared.
+
+### 2026-09-03 — Stupid-proof onboarding (user: A-to-Z tutorial + one CMD from GitHub)
+- Added `TUTORIAL.md`: Win+R→cmd, one magic command, BotFather/userinfobot steps,
+  extension load-unpacked clicks, `/addaccount` flow, session-refresh + revival steps.
+- One-line CMD bootstrap (in README + tutorial): installs Git via winget if missing,
+  refreshes PATH, clones to Desktop, runs `setup.bat`. Private repo → Git Credential
+  Manager handles the one-time login.
+- `setup.bat` now auto-installs Node.js LTS via winget when missing (flat goto-style).
+- Committed `cbcefa1`. BLOCKED on push: no `gh`, no credentials — need repo URL/PAT
+  or user runs `git remote add origin <url>` + `git push -u origin main`.
