@@ -189,3 +189,9 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - `setup.bat` now auto-installs Node.js LTS via winget when missing (flat goto-style).
 - Committed `cbcefa1`. BLOCKED on push: no `gh`, no credentials — need repo URL/PAT
   or user runs `git remote add origin <url>` + `git push -u origin main`.
+
+### 2026-09-03 — Pushed to GitHub (user gave URL + classic PAT)
+- Repo `1khvled/COIN-BOT-` existed but PUBLIC → flipped to private via API (user asked private).
+- Replaced bootstrap placeholders with real URL, committed `383755b`, pushed `main`
+  (tracking set), scrubbed token from `.git/config` (verified clean, `ls-remote` = 383755b).
+- User must REVOKE the PAT now (it appears in this chat transcript).
