@@ -26,15 +26,20 @@ collecting), verifies the balance actually increased, and notifies you per accou
 
 ## 2. One-command setup
 
-**Windows (CMD):**
+**Brand new here? Read [TUTORIAL.md](TUTORIAL.md)** — step-by-step for absolute
+beginners (creating the Telegram bot, getting your chat ID, installing the cookie
+helper, linking AliExpress).
+
+**Windows (CMD) — paste one line, it does everything** (installs Git/Node if
+missing, clones from GitHub, runs setup):
+
 ```bat
-setup.bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=\"$env:USERPROFILE\Desktop\aliexpress-coin-bot\"; if(!(Get-Command git -EA SilentlyContinue)){winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements}; $env:Path=[System.Environment]::GetEnvironmentVariable('Path','Machine')+';'+[System.Environment]::GetEnvironmentVariable('Path','User'); if(!(Test-Path $d)){git clone https://github.com/YOUR_GITHUB_USERNAME/aliexpress-coin-bot.git $d}; & \"$d\setup.bat\""
 ```
 
-**Linux / macOS:**
-```bash
-chmod +x setup.sh && ./setup.sh
-```
+**Already cloned? Just run the setup script:**
+
+Windows (CMD): `setup.bat` — Linux / macOS: `chmod +x setup.sh && ./setup.sh`
 
 That's it — it installs dependencies, downloads headless Chromium, asks for your
 `BOT_TOKEN` + chat ID on first run (generating the encryption secret for you), and

@@ -10,7 +10,17 @@ echo === AliExpress Coin Bot setup ===
 
 where node >nul 2>nul
 if not errorlevel 1 goto have_node
-echo [ERROR] Node.js 20+ not found. Install it from https://nodejs.org then re-run setup.bat
+echo [0/4] Node.js not found - installing automatically with winget...
+where winget >nul 2>nul
+if not errorlevel 1 goto try_winget_node
+goto no_node_auto
+:try_winget_node
+winget install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+if exist "%ProgramFiles%\nodejs\node.exe" set "PATH=%ProgramFiles%\nodejs;%PATH%"
+where node >nul 2>nul
+if not errorlevel 1 goto have_node
+:no_node_auto
+echo [ERROR] Automatic Node.js install failed. Install Node.js 20+ from https://nodejs.org then re-run setup.bat
 exit /b 1
 :have_node
 
