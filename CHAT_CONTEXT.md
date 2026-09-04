@@ -7,14 +7,14 @@
 ## 1. Project overview
 - Telegram bot (Node.js) that auto-collects AliExpress coins using the user's real
   session cookies + headless Chromium (Playwright).
-- Private single-user bot. Admin chat `1759675108`, `MULTI_USER=false`, `TZ=Africa/Algiers`.
+- Private single-user bot. Admin chat `<your-chat-id>`, `MULTI_USER=false`, `TZ=Africa/Algiers`.
 - Not a git repo. `.env` holds real secrets — never print, commit, or paste token/secret values.
 - Bot token username: `CoinsaliexpresBOT` (verified via `getMe`).
 
 ## 2. Paths & runtime identity (must-know for any future session)
 | Item | Value |
 |---|---|
-| Project | `C:\Users\Abdelli\Desktop\Projects\TELEGRAM\aliexpress-coin-bot` |
+| Project | `C:\Users\<you>\Desktop\Projects\TELEGRAM\aliexpress-coin-bot` |
 | Entry | `src\index.js` (banner → `db.init` → `createBot` → `initScheduler` → catch-up) |
 | DB | `data/bot.db` (sql.js; tables: `accounts`, `collection_logs`, `settings`) |
 | Logs | `logs\bot.log` (UTF-8, bot holds it open; PowerShell `>>` once polluted it with UTF-16 — decode tails as UTF-8 bytes) |
@@ -150,7 +150,7 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   hosting verdict, cheat-sheet, timeline) and `AGENTS.md` (Rule 0: every agent MUST append
   a timeline entry for any inspect/change/restart/debug session before finishing).
 - Verified both files exist in project root. Note: `filesystem` MCP is jailed to
-  `C:\Users\Abdelli\Documents`, so project files were written via the direct write tool.
+  `C:\Users\<you>\Documents`, so project files were written via the direct write tool.
 
 ### 2026-09-03 — Repackaged as installable private repo (user: anyone can install/use)
 - Removed dead deps `axios` + `node-cron` (`npm uninstall`; `npm ls` clean:
@@ -210,3 +210,11 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Set GitHub About: description + topics (telegram-bot, aliexpress, playwright,
   nodejs, automation). NOTE: classic PAT still active at push time — user must
   revoke it NOW.
+
+### 2026-09-04 — Leak audit + PII scrub (user: is my data leaked? is setup potato-proof?)
+- Audited worktree + full history (counts only): bot token 0 hits, PAT 0 hits,
+  cookie values 0 hits; `_m_h5_tk=` occurs only as `xxx`/`VALUE` placeholders.
+- Scrubbed personal traces from `CHAT_CONTEXT.md`: admin chat ID → `<your-chat-id>`,
+  `C:\Users\Abdelli` → `C:\Users\<you>`. Re-verified 0 hits for all patterns.
+- Proven anonymous `git ls-remote` succeeds → anyone can clone, no login.
+- PAT tested STILL ACTIVE — revoke reminder repeated.
