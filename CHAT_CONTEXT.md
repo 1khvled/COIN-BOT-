@@ -225,3 +225,10 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   button text + no-cookies troubleshooting; added `extension/README.md`.
 - Chrome forbids silent pre-installs — Load unpacked (4 clicks) is the fastest legal
   path, now unmissable in all three docs. Committed `8f33d8d`, pushed.
+
+### 2026-09-04 — Extension discoverability gap closed (user: do they know how to use/install it?)
+- Gap found: bot's `/help` + `/addaccount` said "install the extension" but never said
+  WHERE it lives. Fixed: both prompts now point at the bundled `extension` folder +
+  TUTORIAL Step 7; `setup.bat` final message adds the same tip.
+- `node --check` clean, `setup.bat --no-start` exit 0, bot restarted (clean boot,
+  polling + 12h schedule verified). Committed `62bc162`, pushed, tree clean.
