@@ -25,7 +25,7 @@ That's it. No programming. No manual downloads.
 Copy this whole line, right-click inside the black CMD window to paste it, press **Enter**:
 
 ```bat
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=\"$env:USERPROFILE\Desktop\aliexpress-coin-bot\"; if(!(Get-Command git -EA SilentlyContinue)){winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements}; $env:Path=[System.Environment]::GetEnvironmentVariable('Path','Machine')+';'+[System.Environment]::GetEnvironmentVariable('Path','User'); if(!(Test-Path $d)){git clone https://github.com/YOUR_GITHUB_USERNAME/aliexpress-coin-bot.git $d}; & \"$d\setup.bat\""
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=\"$env:USERPROFILE\Desktop\aliexpress-coin-bot\"; if(!(Get-Command git -EA SilentlyContinue)){winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements}; $env:Path=[System.Environment]::GetEnvironmentVariable('Path','Machine')+';'+[System.Environment]::GetEnvironmentVariable('Path','User'); if(!(Test-Path $d)){git clone https://github.com/1khvled/COIN-BOT-.git $d}; & \"$d\setup.bat\""
 ```
 
 What it does automatically: installs Git if missing → downloads the bot from GitHub →

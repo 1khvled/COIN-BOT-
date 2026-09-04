@@ -34,7 +34,7 @@ helper, linking AliExpress).
 missing, clones from GitHub, runs setup):
 
 ```bat
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=\"$env:USERPROFILE\Desktop\aliexpress-coin-bot\"; if(!(Get-Command git -EA SilentlyContinue)){winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements}; $env:Path=[System.Environment]::GetEnvironmentVariable('Path','Machine')+';'+[System.Environment]::GetEnvironmentVariable('Path','User'); if(!(Test-Path $d)){git clone https://github.com/YOUR_GITHUB_USERNAME/aliexpress-coin-bot.git $d}; & \"$d\setup.bat\""
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=\"$env:USERPROFILE\Desktop\aliexpress-coin-bot\"; if(!(Get-Command git -EA SilentlyContinue)){winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements}; $env:Path=[System.Environment]::GetEnvironmentVariable('Path','Machine')+';'+[System.Environment]::GetEnvironmentVariable('Path','User'); if(!(Test-Path $d)){git clone https://github.com/1khvled/COIN-BOT-.git $d}; & \"$d\setup.bat\""
 ```
 
 **Already cloned? Just run the setup script:**
