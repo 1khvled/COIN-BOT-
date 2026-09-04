@@ -200,3 +200,13 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Verified: anonymous fetch returns full repo (Public badge, 6 commits, all files).
 - Verified history clean: `.env`/`data/`/`logs/` never committed in any commit.
 - Effect: one-line CMD bootstrap now works for anyone, no GitHub login needed.
+
+### 2026-09-04 — Bot verified healthy + open-source polish (user: all fixed? + readme etc.)
+- Health: rtnode alive; 2026-09-04 07:00 run collected 40 coins (acct 9) + 1 coin
+  (acct 10) — fresh user accounts with real aliases, zero errors.
+- README: shields badges, Contributing/Security links. Added `CONTRIBUTING.md`
+  (PR rules, timeline rule, no-secret handling) + `SECURITY.md` (sensitive files,
+  private vuln reporting). Committed `4377082`, pushed, tree clean.
+- Set GitHub About: description + topics (telegram-bot, aliexpress, playwright,
+  nodejs, automation). NOTE: classic PAT still active at push time — user must
+  revoke it NOW.
