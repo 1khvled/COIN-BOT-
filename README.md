@@ -1,5 +1,10 @@
 # 🤖 AliExpress Coin Collector — Telegram Bot
 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
+![Playwright](https://img.shields.io/badge/browser-Chromium_Playwright-blue)
+![Platform](https://img.shields.io/badge/platform-Windows_Linux_Docker-lightgrey)
+
 Automatically collects your AliExpress coins twice a day through a Telegram bot.
 Drives a headless Chromium through the real mobile coin page (the page's own JS does the
 collecting), verifies the balance actually increased, and notifies you per account.
@@ -162,6 +167,13 @@ extension/        — Chrome cookie-export helper (load unpacked)
 
 `CHAT_CONTEXT.md` is the living A→Z timeline; `AGENTS.md` holds the contributor rules
 (every change must append a timeline entry).
+
+---
+
+## 🤝 Contributing
+
+Open source — PRs and issues welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md)
+and [SECURITY.md](SECURITY.md) first. If this saves you clicks every day, leave a ⭐.
 
 ## License
 
