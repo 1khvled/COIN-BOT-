@@ -69,4 +69,5 @@ exit /b 0
 :do_start
 echo [4/4] Starting the bot... (Ctrl+C to stop)
 echo Then open Telegram, send /start to your bot, and /addaccount to link AliExpress.
+echo TIP: for one-click cookies, load the extension folder in Chrome - see TUTORIAL.md Step 7.
 call npm start
