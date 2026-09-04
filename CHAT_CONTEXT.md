@@ -195,3 +195,8 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Replaced bootstrap placeholders with real URL, committed `383755b`, pushed `main`
   (tracking set), scrubbed token from `.git/config` (verified clean, `ls-remote` = 383755b).
 - User must REVOKE the PAT now (it appears in this chat transcript).
+
+### 2026-09-03 — Repo made public by user (was flipped private for the push)
+- Verified: anonymous fetch returns full repo (Public badge, 6 commits, all files).
+- Verified history clean: `.env`/`data/`/`logs/` never committed in any commit.
+- Effect: one-line CMD bootstrap now works for anyone, no GitHub login needed.
