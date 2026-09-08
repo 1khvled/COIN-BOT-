@@ -87,7 +87,8 @@ folder). One click copies your whole AliExpress login — no DevTools needed.
 5. It asks for a name → type e.g. `My Main` (or tap **Skip**).
 6. Tap **🪙 Collect Now** → coins collected! 🎉
 
-From now on the bot collects **automatically every 12 hours** and messages you the result.
+From now on the bot sweeps **once a day** and messages you the result. If the PC was
+off at sweep time, it runs once as soon as it's back on — never twice in one day.
 
 ---
 

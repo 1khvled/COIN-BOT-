@@ -46,8 +46,8 @@
 - Session expiry signal = login page (`isLoginPage`), saved as `expired-*` debug + status `expired`.
 
 ## 4. Schedule & behavior
-- Collections run **every 12h at 08:00 & 20:00 Africa/Algiers** (`startSchedule`, setTimeout chain —
-  node-cron was REMOVED to kill its 1s tick; near-zero idle CPU).
+- Collections run **once a day at schedule_time** (default 08:00 Africa/Algiers)
+  (`startSchedule`, setTimeout chain — node-cron REMOVED entirely; near-zero idle CPU).
 - Boot catch-up: `shouldCatchUp()` runs one collection at startup if past 08:00 with no log today
   (`src/index.js:34-40`, `src/scheduler.js`).
 - `/collect`/`/debug` guarded by `isCollecting()` lock; concurrent runs return `skipped:true`

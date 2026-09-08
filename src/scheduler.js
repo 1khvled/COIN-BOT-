@@ -1,8 +1,9 @@
 /**
- * scheduler.js — Cron-based auto-collection every 12 hours
+ * scheduler.js — Cron-based auto-collection once a day
  *
- * Runs collectWithRetry() for every stored account twice a day
- * (schedule_time and schedule_time + 12h).
+ * Runs collectWithRetry() for every stored account in a single daily sweep
+ * at schedule_time. The bot always knows whether today is done (collection_logs)
+ * so a late boot runs exactly one catch-up, then waits for tomorrow.
  * Uses a setTimeout chain instead of node-cron so the idle process
  * does not wake up every second — nearly zero idle CPU.
  */
@@ -12,7 +13,6 @@ const { collectWithRetry } = require('./collector');
 const { decrypt } = require('./crypto');
 const { formatCoins, formatResultLine, formatTime } = require('./utils');
 
-const HALF_DAY_MINUTES = 12 * 60;
 let currentTimer = null;
 let botInstance = null;
 
@@ -35,7 +35,7 @@ async function runCollectionForChat(chatId) {
   for (const account of accounts) {
     // A previous run already confirmed this session cannot authenticate.
     // Skip it until the user adds fresh cookies instead of opening Chromium
-    // and sending the same failure every 12 hours.
+    // and sending the same failure every day.
     if (account.last_status === 'expired') {
       console.log(`[scheduler] Skipping expired account #${account.id}`);
       continue;
@@ -112,13 +112,12 @@ async function runAllCollections() {
 }
 
 /**
- * Milliseconds until the next run slot in the given timezone.
- * Run slots: schedule_time and schedule_time + 12h (e.g. 08:00 / 20:00).
+ * Milliseconds until the next daily run in the given timezone.
+ * Exactly one sweep per day at schedule_time (e.g. 08:00).
  */
 function msUntilNextRun(time, timezone) {
   const [hh, mm] = time.split(':').map(Number);
-  const base = (hh * 60 + mm) % 1440;
-  const slots = [base, (base + HALF_DAY_MINUTES) % 1440].sort((a, b) => a - b);
+  const slot = (hh * 60 + mm) % 1440;
 
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
@@ -130,16 +129,16 @@ function msUntilNextRun(time, timezone) {
     Number(parts.find((p) => p.type === 'hour').value) * 60 +
     Number(parts.find((p) => p.type === 'minute').value);
 
-  const next = slots.find((s) => s > nowMin);
-  const deltaMin = next !== undefined ? next - nowMin : 1440 - nowMin + slots[0];
+  const next = slot > nowMin ? slot : slot + 1440;
+  const deltaMin = next - nowMin;
 
   // +1s safety so we never fire a second early
   return deltaMin * 60000 + 1000;
 }
 
 /**
- * Start or restart the 12-hour schedule
- * @param {string} time – "HH:MM" format (base slot)
+ * Start or restart the daily schedule
+ * @param {string} time – "HH:MM" format (the one daily sweep)
  * @param {string} timezone – IANA timezone string
  */
 function startSchedule(time = '08:00', timezone = 'UTC') {
@@ -149,17 +148,20 @@ function startSchedule(time = '08:00', timezone = 'UTC') {
     currentTimer = null;
   }
 
-  const [hh, mm] = time.split(':');
-  const second = `${String((parseInt(hh) + 12) % 24).padStart(2, '0')}:${mm}`;
-
   console.log(
-    `📅 Scheduling collection every 12h at ${time} & ${second} (${timezone})`
+    `📅 Scheduling daily collection at ${time} (${timezone})`
   );
 
   const arm = () => {
     currentTimer = setTimeout(() => {
       // Re-arm first so a slow collection never shifts the next slot
       arm();
+      // Done-today guard: never sweep twice in one day (e.g. after a
+      // catch-up run or a mid-day /schedule change).
+      if (db.hasLogsToday()) {
+        console.log('⏭ Already swept today — skipping scheduled run.');
+        return;
+      }
       runAllCollections().catch((err) =>
         console.error('Scheduled run error:', err)
       );

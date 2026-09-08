@@ -5,13 +5,13 @@
 ![Playwright](https://img.shields.io/badge/browser-Chromium_Playwright-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows_Linux_Docker-lightgrey)
 
-Automatically collects your AliExpress coins twice a day through a Telegram bot.
+Automatically collects your AliExpress coins once a day through a Telegram bot.
 Drives a headless Chromium through the real mobile coin page (the page's own JS does the
 collecting), verifies the balance actually increased, and notifies you per account.
 
 ## Features
 
-- 🪙 **Auto-collection every 12h** (default 08:00 & 20:00 in your timezone) + missed-run catch-up at startup
+- 🪙 **Daily auto-collection** (default 08:00 in your timezone) + missed-run catch-up at startup (runs once if the PC was off, then waits for tomorrow)
 - ✅ **Verified outcomes** — reads the balance before/after, reports collected vs. already-done vs. failed
 - 🔐 **AES-256 encrypted** cookie storage (SQLite, no native deps)
 - 📱 **Mobile-friendly Telegram UI** with inline keyboards
@@ -108,7 +108,7 @@ then `/addaccount` and paste.
 | `/accounts` | List accounts + status |
 | `/collect [id]` | Collect now (all accounts or one) |
 | `/status` | Today's collection summary |
-| `/schedule HH:MM [TZ]` | Set base time (second run = base + 12h) |
+| `/schedule HH:MM [TZ]` | Set daily collection time |
 | `/debug` | Inspect the coin page + screenshot (temp files auto-deleted) |
 
 ---
@@ -164,7 +164,7 @@ src/
 ├── index.js      — entry point, boot + catch-up
 ├── bot.js        — Telegram commands + inline keyboards
 ├── collector.js  — Playwright automation (selectors, claims, verification)
-├── scheduler.js  — 12h schedule (setTimeout chain, no cron tick)
+├── scheduler.js  — daily schedule (setTimeout chain, no cron tick)
 ├── db.js         — sql.js storage (accounts, collection_logs, settings)
 ├── crypto.js     — AES-256 cookie encryption
 └── utils.js      — formatting helpers
