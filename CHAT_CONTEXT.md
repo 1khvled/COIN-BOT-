@@ -243,3 +243,13 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   "Scheduling daily collection at 08:00". Committed `2e6cc25`, pushed.
 - Observed: 2026-09-08 07:00 run — acct 9 collected 43 coins; acct 10 SESSION EXPIRED
   (user needs fresh cookies via /addaccount).
+
+### 2026-09-08 — Rolling 24h sweeps, no fixed time (user: 24h after last sweep, never twice)
+- `db.getLastRunTime()` (MAX(collection_logs.timestamp)) anchors everything.
+- `scheduler`: `msUntilNextSweep`/`getNextSweep`/`reschedule`; timer re-arms from each
+  completion; 1h backoff when a run logs nothing; `shouldCatchUp` deleted, `index.js`
+  catch-up block removed (overdue boot sweeps immediately via delay 0).
+- Manual `/collect` (single + all) calls `reschedule()`; `/status` shows countdown;
+  `/schedule` rewritten as rolling-clock info (fixed times retired).
+- Verified vs real DB (next ≈23.8h) + boot log ("Next sweep at 2026-09-09T19:00:32Z").
+  Committed `b589fa1`, pushed.
