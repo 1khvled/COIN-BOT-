@@ -29,15 +29,9 @@ async function main() {
   scheduler.initScheduler();
   console.log('✅ Scheduler active');
 
-  // Missed-run catch-up: if the PC was off at the scheduled time,
-  // collect as soon as the bot starts (once per day).
-  if (scheduler.shouldCatchUp()) {
-    console.log('⏰ Scheduled time already passed and nothing collected today — running catch-up...');
-    scheduler
-      .runAllCollections()
-      .then(() => console.log('✅ Catch-up collection complete.'))
-      .catch((err) => console.error('💥 Catch-up collection failed:', err.message));
-  }
+  // No separate catch-up block: initScheduler arms the rolling 24h timer,
+  // which sweeps immediately when overdue (late boot) and otherwise waits.
+  // Every completed sweep re-anchors the clock, so it never runs twice.
 
   console.log(`\n   Admin: ${process.env.ADMIN_CHAT_ID}`);
   console.log(`   Multi-user: ${process.env.MULTI_USER === 'true' ? 'ON' : 'OFF'}`);

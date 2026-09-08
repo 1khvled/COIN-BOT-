@@ -11,7 +11,7 @@ collecting), verifies the balance actually increased, and notifies you per accou
 
 ## Features
 
-- 🪙 **Daily auto-collection** (default 08:00 in your timezone) + missed-run catch-up at startup (runs once if the PC was off, then waits for tomorrow)
+- 🪙 **One sweep per day, rolling 24h** — next sweep is always 24h after the last one finished (late boot = one catch-up, then the clock restarts; never twice)
 - ✅ **Verified outcomes** — reads the balance before/after, reports collected vs. already-done vs. failed
 - 🔐 **AES-256 encrypted** cookie storage (SQLite, no native deps)
 - 📱 **Mobile-friendly Telegram UI** with inline keyboards
@@ -108,7 +108,7 @@ then `/addaccount` and paste.
 | `/accounts` | List accounts + status |
 | `/collect [id]` | Collect now (all accounts or one) |
 | `/status` | Today's collection summary |
-| `/schedule HH:MM [TZ]` | Set daily collection time |
+| `/schedule` | Show last/next sweep (rolling 24h clock) |
 | `/debug` | Inspect the coin page + screenshot (temp files auto-deleted) |
 
 ---

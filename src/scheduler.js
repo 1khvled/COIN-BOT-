@@ -1,9 +1,10 @@
 /**
- * scheduler.js — Cron-based auto-collection once a day
+ * scheduler.js — Rolling 24h auto-collection (one sweep per day, no fixed time)
  *
- * Runs collectWithRetry() for every stored account in a single daily sweep
- * at schedule_time. The bot always knows whether today is done (collection_logs)
- * so a late boot runs exactly one catch-up, then waits for tomorrow.
+ * The next sweep is always 24h after the LAST sweep actually finished
+ * (auto, catch-up, or manual /collect — every completed run writes a log row).
+ * Sweep at 9pm → next sweep 9pm tomorrow. Late boot → one catch-up now,
+ * then the 24h clock restarts from there. Never twice in 24h.
  * Uses a setTimeout chain instead of node-cron so the idle process
  * does not wake up every second — nearly zero idle CPU.
  */
@@ -13,6 +14,8 @@ const { collectWithRetry } = require('./collector');
 const { decrypt } = require('./crypto');
 const { formatCoins, formatResultLine, formatTime } = require('./utils');
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RETRY_MS = 60 * 60 * 1000; // backoff when a run logged nothing at all
 let currentTimer = null;
 let botInstance = null;
 
@@ -112,119 +115,92 @@ async function runAllCollections() {
 }
 
 /**
- * Milliseconds until the next daily run in the given timezone.
- * Exactly one sweep per day at schedule_time (e.g. 08:00).
+ * Milliseconds until the next sweep: 24h after the last logged sweep.
+ * Never swept → due now (first boot collects immediately, then the clock starts).
  */
-function msUntilNextRun(time, timezone) {
-  const [hh, mm] = time.split(':').map(Number);
-  const slot = (hh * 60 + mm) % 1440;
-
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(new Date());
-  const nowMin =
-    Number(parts.find((p) => p.type === 'hour').value) * 60 +
-    Number(parts.find((p) => p.type === 'minute').value);
-
-  const next = slot > nowMin ? slot : slot + 1440;
-  const deltaMin = next - nowMin;
-
-  // +1s safety so we never fire a second early
-  return deltaMin * 60000 + 1000;
+function msUntilNextSweep() {
+  const last = db.getLastRunTime();
+  if (!last) return 0;
+  return Math.max(0, last + DAY_MS - Date.now());
 }
 
 /**
- * Start or restart the daily schedule
- * @param {string} time – "HH:MM" format (the one daily sweep)
- * @param {string} timezone – IANA timezone string
+ * Last sweep info for status displays.
+ * @returns {{lastRun: number|null, nextInMs: number}}
  */
-function startSchedule(time = '08:00', timezone = 'UTC') {
-  // Stop existing timer
+function getNextSweep() {
+  const last = db.getLastRunTime();
+  if (!last) return { lastRun: null, nextInMs: 0 };
+  return { lastRun: last, nextInMs: Math.max(0, last + DAY_MS - Date.now()) };
+}
+
+/** Arm (or re-arm) the rolling timer from the last logged sweep. */
+function arm() {
+  const delay = msUntilNextSweep();
+  if (delay <= 0) {
+    console.log('📅 Sweep overdue — running now, then every 24h after completion.');
+  } else {
+    console.log(
+      `📅 Next sweep at ${new Date(Date.now() + delay).toISOString()} (in ${Math.round(delay / 60000)}m)`
+    );
+  }
+  currentTimer = setTimeout(async () => {
+    try {
+      const before = db.getLastRunTime();
+      await runAllCollections();
+      if (db.getLastRunTime() === before) {
+        // The run logged nothing (e.g. browser missing) — retry in an hour,
+        // not never and not in a hot loop.
+        console.log('⚠️ Sweep logged nothing — retrying in 1h.');
+        currentTimer = setTimeout(() => arm(), RETRY_MS);
+        return;
+      }
+    } catch (err) {
+      console.error('Scheduled run error:', err);
+      currentTimer = setTimeout(() => arm(), RETRY_MS);
+      return;
+    }
+    arm(); // anchor the next sweep to this completion
+  }, delay);
+}
+
+/**
+ * Start or restart the rolling schedule.
+ * Kept signature-compatible: the stored schedule_time/timezone are now
+ * display-only (see /schedule) — timing is purely 24h-after-last-sweep.
+ */
+function startSchedule() {
   if (currentTimer) {
     clearTimeout(currentTimer);
     currentTimer = null;
   }
-
-  console.log(
-    `📅 Scheduling daily collection at ${time} (${timezone})`
-  );
-
-  const arm = () => {
-    currentTimer = setTimeout(() => {
-      // Re-arm first so a slow collection never shifts the next slot
-      arm();
-      // Done-today guard: never sweep twice in one day (e.g. after a
-      // catch-up run or a mid-day /schedule change).
-      if (db.hasLogsToday()) {
-        console.log('⏭ Already swept today — skipping scheduled run.');
-        return;
-      }
-      runAllCollections().catch((err) =>
-        console.error('Scheduled run error:', err)
-      );
-    }, msUntilNextRun(time, timezone));
-  };
   arm();
 }
 
+/** Public re-anchor: call after any manual sweep so the 24h clock restarts. */
+function reschedule() {
+  startSchedule();
+}
+
 /**
- * Initialize scheduler from DB settings
- * Uses the admin's settings or defaults
+ * Initialize the rolling scheduler.
+ * No clock times involved: the first arm() call sweeps immediately if overdue
+ * (late boot = catch-up), otherwise waits out the remainder of the 24h window.
  */
 function initScheduler() {
-  const adminChatId = process.env.ADMIN_CHAT_ID;
-  if (!adminChatId) {
-    console.warn('⚠️  No ADMIN_CHAT_ID set — using default schedule 08:00 UTC');
-    startSchedule('08:00', 'UTC');
-    return;
-  }
-
-  const settings = db.getSettings(adminChatId);
-  startSchedule(settings.schedule_time, settings.timezone);
+  startSchedule();
 }
 
 /**
- * Get info about the current schedule
+ * Get info about the current schedule (plus rolling-clock state for /status).
  */
 function getScheduleInfo() {
+  const next = getNextSweep();
   return {
     running: currentTimer !== null,
+    lastRun: next.lastRun,
+    nextInMs: next.nextInMs,
   };
-}
-
-/**
- * True if the scheduled collection time has already passed today
- * AND no collection has been logged yet — i.e. the PC was off at
- * schedule time and a catch-up run is needed.
- */
-function shouldCatchUp() {
-  try {
-    const adminChatId = process.env.ADMIN_CHAT_ID;
-    const settings = db.getSettings(adminChatId);
-    const [hh, mm] = settings.schedule_time.split(":");
-
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone: settings.timezone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(new Date());
-    const h = parseInt(parts.find((p) => p.type === "hour").value, 10);
-    const m = parseInt(parts.find((p) => p.type === "minute").value, 10);
-
-    const schedMin = parseInt(hh, 10) * 60 + parseInt(mm, 10);
-    const nowMin = h * 60 + m;
-
-    if (nowMin < schedMin) return false;
-    if (db.hasLogsToday()) return false;
-    return true;
-  } catch (err) {
-    console.error("shouldCatchUp error:", err.message);
-    return false;
-  }
 }
 
 /**
@@ -247,7 +223,8 @@ module.exports = {
   runCollectionForChat,
   runAllCollections,
   startSchedule,
+  reschedule,
   initScheduler,
   getScheduleInfo,
-  shouldCatchUp,
+  getNextSweep,
 };

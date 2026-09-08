@@ -219,6 +219,18 @@ function hasLogsToday() {
   return !!row;
 }
 
+/**
+ * UTC ms of the most recent logged sweep (auto, catch-up, or manual —
+ * every completed run writes a log row), or null if the bot never swept.
+ * This is the anchor for the rolling 24h schedule.
+ */
+function getLastRunTime() {
+  const row = queryOne('SELECT MAX(timestamp) AS t FROM collection_logs');
+  if (!row || !row.t) return null;
+  const ms = Date.parse(String(row.t).replace(' ', 'T') + 'Z');
+  return Number.isFinite(ms) ? ms : null;
+}
+
 // ─── Settings ──────────────────────────────────────────
 
 function getSettings(chatId) {
@@ -267,6 +279,7 @@ module.exports = {
   getRecentLogs,
   wasClaimedToday,
   hasLogsToday,
+  getLastRunTime,
   getSettings,
   updateSettings,
   close,

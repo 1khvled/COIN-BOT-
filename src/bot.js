@@ -20,7 +20,6 @@ const {
   formatStatusTable,
   formatTime,
   formatResultLine,
-  parseSchedule,
 } = require("./utils");
 const scheduler = require("./scheduler");
 
@@ -29,6 +28,15 @@ const OPTIONAL_COOKIES = ["xman_us_f", "cna", "xman_t", "acs_usuc_t"];
 
 // Track users who are mid-flow for /addaccount
 const pendingAddAccount = new Map();
+
+/** Human countdown: ms → "due now" | "in Xh Ym" | "in Xd Xh". */
+function formatCountdown(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return "due now";
+  const mins = Math.floor(ms / 60000);
+  const h = Math.floor(mins / 60);
+  if (h < 48) return `in ${h}h ${mins % 60}m`;
+  return `in ${Math.floor(h / 24)}d ${h % 24}h`;
+}
 
 /**
  * Create and configure the Telegram bot
@@ -407,6 +415,9 @@ function createBot() {
       message_id: progressMsg.message_id,
       parse_mode: "Markdown",
     });
+
+    // A manual sweep resets the rolling 24h clock.
+    scheduler.reschedule();
   }
 
   async function runCollectionForAllAccounts(chatId) {
@@ -512,6 +523,9 @@ function createBot() {
     } catch {
       bot.sendMessage(chatId, allLines.join("\n"), { parse_mode: "Markdown" });
     }
+
+    // A manual sweep resets the rolling 24h clock.
+    scheduler.reschedule();
   }
 
   // ─── /status ─────────────────────────────────────────
@@ -523,7 +537,6 @@ function createBot() {
 
   function sendStatus(chatId) {
     const accounts = db.getAccountsByChat(String(chatId));
-    const settings = db.getSettings(String(chatId));
     const schedInfo = scheduler.getScheduleInfo();
 
     const rows = accounts.map((a) => ({
@@ -550,7 +563,7 @@ function createBot() {
       table,
       "",
       `💰 Total: ${formatCoins(totalCoins)}`,
-      `📅 Schedule: ${settings.schedule_time} (${settings.timezone})`,
+      `⏭ Next sweep: ${formatCountdown(schedInfo.nextInMs)} (rolling 24h)`,
       `⏱ Scheduler: ${schedInfo.running ? "✅ Active" : "❌ Stopped"}`,
       `📋 Accounts: ${accounts.length}`,
     ];
@@ -569,47 +582,35 @@ function createBot() {
   }
 
   // ─── /schedule ───────────────────────────────────────
-  bot.onText(/\/schedule(?:\s+(.+))?/, (msg, match) => {
+  // Rolling 24h mode: each sweep happens 24h after the previous one finished.
+  bot.onText(/\/schedule(?:\s+(.+))?/, (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return unauthorized(chatId);
 
-    const input = match?.[1]?.trim();
-    if (!input) {
-      const settings = db.getSettings(String(chatId));
-      bot.sendMessage(
-        chatId,
-        [
-          "📅 *Schedule Settings*",
-          "",
-          `Current: *${settings.schedule_time}* (${settings.timezone})`,
-          "",
-          "Usage: `/schedule HH:MM Timezone`",
-          "Example: `/schedule 09:30 Africa/Algiers`",
-        ].join("\n"),
-        { parse_mode: "Markdown" },
-      );
-      return;
-    }
-
-    const parsed = parseSchedule(input);
-    if (!parsed) {
-      bot.sendMessage(
-        chatId,
-        "❌ Invalid format. Use: `/schedule 09:30 Africa/Algiers`",
-        {
-          parse_mode: "Markdown",
-        },
-      );
-      return;
-    }
-
-    db.updateSettings(String(chatId), parsed.time, parsed.timezone);
-    scheduler.startSchedule(parsed.time, parsed.timezone);
+    const next = scheduler.getNextSweep();
+    const lastLine = next.lastRun
+      ? `Last sweep: ${new Date(next.lastRun).toISOString().replace("T", " ").slice(0, 16)} UTC`
+      : "Last sweep: never (first sweep runs at startup)";
 
     bot.sendMessage(
       chatId,
-      `✅ Schedule updated!\n\n📅 Daily collection at *${parsed.time}* (${parsed.timezone})`,
-      { parse_mode: "Markdown" },
+      [
+        "📅 *Schedule: rolling 24h*",
+        "",
+        "One sweep, then 24h of rest from when it finished.",
+        "Late boot = one catch-up now, then the clock restarts. Never twice.",
+        "",
+        lastLine,
+        `Next sweep: *${formatCountdown(next.nextInMs)}*`,
+        "",
+        "Tap below to sweep right now (resets the 24h clock) 👇",
+      ].join("\n"),
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [[{ text: "🪙 Collect Now", callback_data: "cmd_collect_all" }]],
+        },
+      },
     );
   });
 
