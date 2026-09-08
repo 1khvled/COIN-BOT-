@@ -1,10 +1,10 @@
 /**
  * scheduler.js — Rolling 24h auto-collection (one sweep per day, no fixed time)
  *
- * The next sweep is always 24h after the LAST sweep actually finished
- * (auto, catch-up, or manual /collect — every completed run writes a log row).
- * Sweep at 9pm → next sweep 9pm tomorrow. Late boot → one catch-up now,
- * then the 24h clock restarts from there. Never twice in 24h.
+ * The next sweep is always 24h after the ANCHOR: the first sweep of the most
+ * recent sweep day. Sweep at 9pm → next sweep 9pm tomorrow. Extra same-day runs
+ * (manual /collect) never move the clock. Late boot → one catch-up now if the
+ * 24h passed, else wait out the remainder. Never twice in 24h.
  * Uses a setTimeout chain instead of node-cron so the idle process
  * does not wake up every second — nearly zero idle CPU.
  */
@@ -115,13 +115,14 @@ async function runAllCollections() {
 }
 
 /**
- * Milliseconds until the next sweep: 24h after the last logged sweep.
- * Never swept → due now (first boot collects immediately, then the clock starts).
+ * Milliseconds until the next sweep: 24h after the ANCHOR — the first sweep
+ * of the most recent sweep day. Extra same-day runs never move the clock.
+ * Never swept → due now (first boot collects immediately, then clock starts).
  */
 function msUntilNextSweep() {
-  const last = db.getLastRunTime();
-  if (!last) return 0;
-  return Math.max(0, last + DAY_MS - Date.now());
+  const anchor = db.getAnchorTime();
+  if (!anchor) return 0;
+  return Math.max(0, anchor + DAY_MS - Date.now());
 }
 
 /**
@@ -130,8 +131,9 @@ function msUntilNextSweep() {
  */
 function getNextSweep() {
   const last = db.getLastRunTime();
-  if (!last) return { lastRun: null, nextInMs: 0 };
-  return { lastRun: last, nextInMs: Math.max(0, last + DAY_MS - Date.now()) };
+  const anchor = db.getAnchorTime();
+  if (!anchor) return { lastRun: last, nextInMs: 0 };
+  return { lastRun: last, nextInMs: Math.max(0, anchor + DAY_MS - Date.now()) };
 }
 
 /** Arm (or re-arm) the rolling timer from the last logged sweep. */

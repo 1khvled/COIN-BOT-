@@ -46,9 +46,9 @@
 - Session expiry signal = login page (`isLoginPage`), saved as `expired-*` debug + status `expired`.
 
 ## 4. Schedule & behavior
-- Collections run on a **rolling 24h clock**: next sweep = last logged sweep + 24h
-  (auto, catch-up, or manual `/collect` — every completed run re-anchors the clock).
-  Late boot = one catch-up now if overdue, else wait out the remainder. Never twice.
+- Collections run on a **rolling 24h clock**: next sweep = the day's FIRST sweep + 24h
+  (extra same-day runs never move the clock). Late boot = one catch-up now if the
+  24h passed, else wait out the remainder. Never twice.
 - Boot catch-up: `shouldCatchUp()` runs one collection at startup if past 08:00 with no log today
   (`src/index.js:34-40`, `src/scheduler.js`).
 - `/collect`/`/debug` guarded by `isCollecting()` lock; concurrent runs return `skipped:true`

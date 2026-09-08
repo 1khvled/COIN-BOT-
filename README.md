@@ -11,7 +11,7 @@ collecting), verifies the balance actually increased, and notifies you per accou
 
 ## Features
 
-- 🪙 **One sweep per day, rolling 24h** — next sweep is always 24h after the last one finished (late boot = one catch-up, then the clock restarts; never twice)
+- 🪙 **One sweep per day, rolling 24h** — the day's first sweep starts the 24h wait (late boot = one catch-up, then the clock restarts; never twice)
 - ✅ **Verified outcomes** — reads the balance before/after, reports collected vs. already-done vs. failed
 - 🔐 **AES-256 encrypted** cookie storage (SQLite, no native deps)
 - 📱 **Mobile-friendly Telegram UI** with inline keyboards

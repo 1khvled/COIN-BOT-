@@ -231,6 +231,22 @@ function getLastRunTime() {
   return Number.isFinite(ms) ? ms : null;
 }
 
+/**
+ * UTC ms of the FIRST sweep on the same UTC day as the most recent sweep,
+ * or null if the bot never swept.
+ * A day with extra runs (old schedule, manual /collect) still anchors the
+ * next sweep to its first sweep — never to a later same-day run.
+ */
+function getAnchorTime() {
+  const row = queryOne(
+    `SELECT MIN(timestamp) AS t FROM collection_logs
+     WHERE date(timestamp) = (SELECT date(MAX(timestamp)) FROM collection_logs)`
+  );
+  if (!row || !row.t) return null;
+  const ms = Date.parse(String(row.t).replace(' ', 'T') + 'Z');
+  return Number.isFinite(ms) ? ms : null;
+}
+
 // ─── Settings ──────────────────────────────────────────
 
 function getSettings(chatId) {
@@ -280,6 +296,7 @@ module.exports = {
   wasClaimedToday,
   hasLogsToday,
   getLastRunTime,
+  getAnchorTime,
   getSettings,
   updateSettings,
   close,

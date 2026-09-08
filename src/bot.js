@@ -597,7 +597,7 @@ function createBot() {
       [
         "📅 *Schedule: rolling 24h*",
         "",
-        "One sweep, then 24h of rest from when it finished.",
+        "One sweep per day: the day's first sweep starts the 24h wait.",
         "Late boot = one catch-up now, then the clock restarts. Never twice.",
         "",
         lastLine,
