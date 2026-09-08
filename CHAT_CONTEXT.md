@@ -253,3 +253,10 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   `/schedule` rewritten as rolling-clock info (fixed times retired).
 - Verified vs real DB (next ≈23.8h) + boot log ("Next sweep at 2026-09-09T19:00:32Z").
   Committed `b589fa1`, pushed.
+
+### 2026-09-08 — Anchor = day's FIRST sweep (user: today was a double, start from first)
+- Today swept twice under the old 12h schedule (07:00 + 19:00Z); last-run anchoring
+  wrongly set next sweep to tomorrow 19:00. New rule: `db.getAnchorTime()` =
+  MIN(timestamp) on the latest sweep day; extra same-day runs never move the clock.
+- Verified vs real DB (anchor 07:00:27Z, next ≈11.75h) + boot log
+  ("Next sweep at 2026-09-09T07:00:27Z"). Docs reworded. Committed `468757c`, pushed.
