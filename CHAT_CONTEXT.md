@@ -232,3 +232,13 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   TUTORIAL Step 7; `setup.bat` final message adds the same tip.
 - `node --check` clean, `setup.bat --no-start` exit 0, bot restarted (clean boot,
   polling + 12h schedule verified). Committed `62bc162`, pushed, tree clean.
+
+### 2026-09-08 — One sweep per day with done-today memory (user: 1 sweep/day, knows if done)
+- `scheduler.js`: removed 2nd slot; single daily sweep at schedule_time (08:00 default).
+  Timer fire re-checks `hasLogsToday()` and skips if done (catch-up runs, manual
+  `/schedule` changes can never double-sweep). Boot catch-up unchanged: PC off at
+  08:00 → one run at boot (writes log = done) → next sweep tomorrow 08:00.
+- Docs updated (README/TUTORIAL/§4). Syntax OK, bot restarted, boot log confirms
+  "Scheduling daily collection at 08:00". Committed `2e6cc25`, pushed.
+- Observed: 2026-09-08 07:00 run — acct 9 collected 43 coins; acct 10 SESSION EXPIRED
+  (user needs fresh cookies via /addaccount).
