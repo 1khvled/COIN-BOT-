@@ -97,6 +97,66 @@ async function runCollectionForChat(chatId) {
     }
 
     await notify(chatId, lines.join('\n'));
+
+    // Check if 24-48h marketing deal notification is due for this user
+    await checkAndSendMarketingPush(chatId);
+  }
+}
+
+/**
+ * Sends a non-annoying deal showcase message every 24-48 hours.
+ * Only sends text/links, strictly separated, never spammy.
+ */
+async function checkAndSendMarketingPush(chatId) {
+  try {
+    const channel = process.env.REQUIRED_CHANNEL || "@DzAliexpress0";
+    const dealsBot = process.env.DEALS_BOT || "@Alilo07BOT";
+    const channelClean = channel.replace("@", "");
+    const dealsBotClean = dealsBot.replace("@", "");
+
+    const key = `last_marketing_${chatId}`;
+    const lastStr = db.getMarketingState ? db.getMarketingState(key) : null;
+    const now = Date.now();
+    const minIntervalMs = 28 * 60 * 60 * 1000; // 28 hours (guarantees 24h-48h spacing)
+
+    if (lastStr) {
+      const lastTime = parseInt(lastStr, 10);
+      if (Number.isFinite(lastTime) && now - lastTime < minIntervalMs) {
+        return; // Not due yet
+      }
+    }
+
+    const marketingText = [
+      "🔥 *Spend your coins with maximum discount today!*",
+      "",
+      `Our verified Telegram channel [*${channel}*](https://t.me/${channelClean}) curates top deals with up to 70% Coin discounts & Canadian/Korean stock savings:`,
+      "",
+      "• 📱 *Smartphones & Tablets* (Poco, Realme, Redmi Pad)",
+      "• 🖱 *Gaming Gear* (Attack Shark, Ajazz, Aula Keyboards)",
+      "• ⚡ *PC Hardware & RAM* (PTM7950, NVMe SSDs)",
+      "",
+      `💡 *Found an item on AliExpress?*`,
+      `Send any product link to [${dealsBot}](https://t.me/${dealsBotClean}) to get the direct max-coin discount link!`,
+    ].join("\n");
+
+    if (botInstance) {
+      await botInstance.sendMessage(chatId, marketingText, {
+        parse_mode: "Markdown",
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `📢 Browse ${channel} Deals`, url: `https://t.me/${channelClean}` }],
+            [{ text: `🪙 Convert Link on ${dealsBot}`, url: `https://t.me/${dealsBotClean}` }],
+          ],
+        },
+      });
+
+      if (db.setMarketingState) {
+        db.setMarketingState(key, now);
+      }
+    }
+  } catch (err) {
+    console.warn(`[marketing-push] Could not send promo to ${chatId}:`, err.message);
   }
 }
 

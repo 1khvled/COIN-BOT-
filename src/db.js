@@ -105,6 +105,13 @@ async function init() {
     );
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS marketing_state (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
+
   saveToDisk();
   return db;
 }
@@ -270,6 +277,16 @@ function updateSettings(chatId, scheduleTime, timezone) {
   );
 }
 
+function getMarketingState(key) {
+  const row = queryOne('SELECT value FROM marketing_state WHERE key = ?', [key]);
+  return row ? row.value : null;
+}
+
+function setMarketingState(key, value) {
+  runSql('DELETE FROM marketing_state WHERE key = ?', [key]);
+  return runSql('INSERT INTO marketing_state (key, value) VALUES (?, ?)', [key, String(value)]);
+}
+
 // ─── Cleanup ───────────────────────────────────────────
 
 function close() {
@@ -299,5 +316,7 @@ module.exports = {
   getAnchorTime,
   getSettings,
   updateSettings,
+  getMarketingState,
+  setMarketingState,
   close,
 };

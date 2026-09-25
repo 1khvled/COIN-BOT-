@@ -56,7 +56,57 @@ function createBot() {
   // Register the bot with the scheduler so it can send notifications
   scheduler.setBotInstance(bot);
 
-  // ─── Auth Guard ──────────────────────────────────────
+  // ─── Channel Subscription & Auth Guard ─────────────────
+  const REQUIRED_CHANNEL = process.env.REQUIRED_CHANNEL || "@DzAliexpress0";
+  const DEALS_BOT = process.env.DEALS_BOT || "@Alilo07BOT";
+
+  async function checkChannelMember(chatId) {
+    // If no channel configured, pass
+    if (!REQUIRED_CHANNEL) return true;
+    try {
+      const member = await bot.getChatMember(REQUIRED_CHANNEL, chatId);
+      const allowed = ["creator", "administrator", "member", "restricted"];
+      return allowed.includes(member.status);
+    } catch (err) {
+      console.warn(`[channel-check] Could not verify membership for ${chatId} in ${REQUIRED_CHANNEL}:`, err.message);
+      // If channel is private or check fails, default to true so bot doesn't hard-crash
+      return true;
+    }
+  }
+
+  async function requireChannelSubscription(chatId) {
+    const isMember = await checkChannelMember(chatId);
+    if (!isMember) {
+      const channelName = REQUIRED_CHANNEL.replace("@", "");
+      bot.sendMessage(
+        chatId,
+        [
+          "📢 *Welcome to AliExpress Coin Collector!*",
+          "",
+          `To use this bot and collect daily coins automatically, you must be subscribed to our official channel: *${REQUIRED_CHANNEL}*!`,
+          "",
+          "🔥 *Why join?*",
+          "• Daily hand-picked deals with up to 70% Coin discounts",
+          "• Secret promo codes & festival calendars",
+          "• Hardware & gaming bargains for Algeria & global regions",
+          "",
+          "👉 Click below to join the channel, then tap *Verify Subscription*! 👇",
+        ].join("\n"),
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: `📢 Join ${REQUIRED_CHANNEL}`, url: `https://t.me/${channelName}` }],
+              [{ text: "✅ I Have Joined (Verify)", callback_data: "check_subscription" }],
+            ],
+          },
+        }
+      );
+      return false;
+    }
+    return true;
+  }
+
   function isAuthorized(chatId) {
     if (process.env.MULTI_USER === "true") return true;
     return String(chatId) === String(process.env.ADMIN_CHAT_ID);
@@ -67,9 +117,12 @@ function createBot() {
   }
 
   // ─── /start ──────────────────────────────────────────
-  bot.onText(/\/start/, (msg) => {
+  bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return unauthorized(chatId);
+
+    const isSubbed = await requireChannelSubscription(chatId);
+    if (!isSubbed) return;
 
     const text = [
       "🤖 *AliExpress Coin Collector*",
@@ -80,6 +133,10 @@ function createBot() {
       "1\\. Extract cookies from AliExpress",
       "2\\. Add your account with /addaccount",
       "3\\. Bot collects coins daily\\!",
+      "",
+      "🪙 *Want to spend your coins with maximum discount?*",
+      `Check out our partner deals channel: ${REQUIRED_CHANNEL.replace(/_/g, "\\_")}`,
+      `Or convert any product link with ${DEALS_BOT.replace(/_/g, "\\_")}\\!`,
       "",
       "Tap a button below to get started 👇",
     ].join("\n");
@@ -95,6 +152,12 @@ function createBot() {
           [
             { text: "🪙 Collect Now", callback_data: "cmd_collect_all" },
             { text: "❓ Help", callback_data: "cmd_help" },
+          ],
+          [
+            { text: `📢 Daily Deals Channel (${REQUIRED_CHANNEL})`, url: `https://t.me/${REQUIRED_CHANNEL.replace("@", "")}` },
+          ],
+          [
+            { text: `🔥 Instant Coin Link Bot (${DEALS_BOT})`, url: `https://t.me/${DEALS_BOT.replace("@", "")}` },
           ],
         ],
       },
@@ -139,15 +202,22 @@ function createBot() {
       "",
       "⚠️ Include ALL cookies — not just the two listed.",
       "Cookies expire every ~2-4 weeks.",
+      "",
+      "━━━━━━━━━━━━━━━━━━━━━",
+      `📢 *Official Deals Channel:* ${REQUIRED_CHANNEL}`,
+      `🪙 *Coin Discount Bot:* ${DEALS_BOT}`,
     ].join("\n");
 
     bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
   }
 
   // ─── /addaccount ─────────────────────────────────────
-  bot.onText(/\/addaccount/, (msg) => {
+  bot.onText(/\/addaccount/, async (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return unauthorized(chatId);
+
+    const isSubbed = await requireChannelSubscription(chatId);
+    if (!isSubbed) return;
 
     pendingAddAccount.set(chatId, { step: "awaiting_cookies" });
 
@@ -745,8 +815,47 @@ function createBot() {
 
     if (!isAuthorized(chatId)) return unauthorized(chatId);
 
+    // Check Subscription verification callback
+    if (data === "check_subscription") {
+      const isSubbed = await checkChannelMember(chatId);
+      if (isSubbed) {
+        bot.sendMessage(
+          chatId,
+          "✅ *Subscription verified successfully!* 🎉\n\nYou now have full access to automated daily AliExpress coin collection.\nUse /addaccount to connect your AliExpress account!",
+          {
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "➕ Add AliExpress Account", callback_data: "cmd_addaccount" }],
+                [{ text: "❓ How it Works (Guide)", callback_data: "cmd_help" }],
+              ],
+            },
+          }
+        );
+      } else {
+        const channelName = REQUIRED_CHANNEL.replace("@", "");
+        bot.sendMessage(
+          chatId,
+          `❌ *You haven't joined yet!* Please join [${REQUIRED_CHANNEL}](https://t.me/${channelName}) first, then tap *Verify Subscription* again.`,
+          {
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: `📢 Join ${REQUIRED_CHANNEL}`, url: `https://t.me/${channelName}` }],
+                [{ text: "🔄 Verify Subscription Again", callback_data: "check_subscription" }],
+              ],
+            },
+          }
+        );
+      }
+      return;
+    }
+
     // Command shortcuts
     if (data === "cmd_addaccount") {
+      const isSubbed = await requireChannelSubscription(chatId);
+      if (!isSubbed) return;
+
       pendingAddAccount.set(chatId, { step: "awaiting_cookies" });
       bot.sendMessage(
         chatId,

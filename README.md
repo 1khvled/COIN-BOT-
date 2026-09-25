@@ -1,186 +1,84 @@
-# 🤖 AliExpress Coin Collector — Telegram Bot
+# 🤖 AliExpress Daily Coin Collector & Deals Ecosystem
 
+[![Channel](https://img.shields.io/badge/Telegram-Channel%20%40DzAliexpress0-blue?logo=telegram)](https://t.me/DzAliexpress0)
+[![Coin Deals Bot](https://img.shields.io/badge/Telegram-Bot%20%40Alilo07BOT-green?logo=telegram)](https://t.me/Alilo07BOT)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
 ![Playwright](https://img.shields.io/badge/browser-Chromium_Playwright-blue)
-![Platform](https://img.shields.io/badge/platform-Windows_Linux_Docker-lightgrey)
 
-Automatically collects your AliExpress coins once a day through a Telegram bot.
-Drives a headless Chromium through the real mobile coin page (the page's own JS does the
-collecting), verifies the balance actually increased, and notifies you per account.
+Automatically collect 70 to 100+ AliExpress coins daily from your own PC/home connection without getting IP-banned!
 
-## Features
-
-- 🪙 **One sweep per day, rolling 24h** — the day's first sweep starts the 24h wait (late boot = one catch-up, then the clock restarts; never twice)
-- ✅ **Verified outcomes** — reads the balance before/after, reports collected vs. already-done vs. failed
-- 🔐 **AES-256 encrypted** cookie storage (SQLite, no native deps)
-- 📱 **Mobile-friendly Telegram UI** with inline keyboards
-- 🧠 **Knows the page** — digit-roll balance parsing, check-in streak/calendar breakdown, earn-more task board
-- ⚠️ **Expiry alerts** — tells you when a session dies so you can refresh cookies
-- 👥 **Optional multi-user mode** — anyone can `/start` and manage their own accounts
-- 🪶 **Light idle footprint** (~110MB RAM, ~zero idle CPU; Chromium only spins up during runs)
-- 🐳 **Docker-ready** — Playwright base image with Chromium preinstalled
+> 📢 **Official Deals Partner:** Powered by [@DzAliexpress0](https://t.me/DzAliexpress0) — Curating the highest coin-discount deals (up to 70% OFF) & verified hardware/tech bargains.
 
 ---
 
-## 1. Prerequisites
+## ⚡ Super Easy Setup (Install in 2 Minutes)
 
-- **Node.js 20+** and npm
-- A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- Your Telegram numeric chat ID from [@userinfobot](https://t.me/userinfobot)
+Anyone can install this on Windows, Mac, or Linux. No coding required!
 
-## 2. One-command setup
-
-**Brand new here? Read [TUTORIAL.md](TUTORIAL.md)** — step-by-step for absolute
-beginners (creating the Telegram bot, getting your chat ID, installing the cookie
-helper, linking AliExpress).
-
-**Windows (CMD) — paste one line, it does everything** (installs Git/Node if
-missing, clones from GitHub, runs setup):
+### 🪟 Windows (1-Click Paste & Run)
+1. Press `Windows Key + R`, type `cmd`, and press **Enter**.
+2. Copy and paste this single line, then press **Enter**:
 
 ```bat
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=\"$env:USERPROFILE\Desktop\aliexpress-coin-bot\"; if(!(Get-Command git -EA SilentlyContinue)){winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements}; $env:Path=[System.Environment]::GetEnvironmentVariable('Path','Machine')+';'+[System.Environment]::GetEnvironmentVariable('Path','User'); if(!(Test-Path $d)){git clone https://github.com/1khvled/COIN-BOT-.git $d}; & \"$d\setup.bat\""
 ```
 
-**Already cloned? Just run the setup script:**
+The script automatically installs everything, prompts for your Telegram bot token, and launches!
 
-Windows (CMD): `setup.bat` — Linux / macOS: `chmod +x setup.sh && ./setup.sh`
+---
 
-That's it — it installs dependencies, downloads headless Chromium, asks for your
-`BOT_TOKEN` + chat ID on first run (generating the encryption secret for you), and
-starts the bot. Then send `/start` to your bot in Telegram. ✅
-
-## 2b. Manual install (if you prefer each step)
-
+### 🐧 Linux / macOS
 ```bash
-git clone <your-repo-url> aliexpress-coin-bot
+git clone https://github.com/1khvled/COIN-BOT-.git aliexpress-coin-bot
 cd aliexpress-coin-bot
-npm install
-npx playwright install chromium   # downloads headless Chromium (~170MB)
-cp .env.example .env
+chmod +x setup.sh && ./setup.sh
 ```
-
-Edit `.env`:
-
-```env
-BOT_TOKEN=123456:ABC-DEF...       # from @BotFather
-ADMIN_CHAT_ID=987654321           # your numeric chat ID
-ENCRYPT_SECRET=any-random-32-char-string!!!   # used to encrypt stored cookies
-MULTI_USER=false                  # true = anyone may use the bot; false = admin only
-TZ=Africa/Algiers                 # your IANA timezone
-```
-
-```bash
-npm start
-```
-
-Send `/start` to your bot in Telegram. ✅
-
-## 3. Add your AliExpress session
-
-### 🍪 Option A — bundled one-click extension (recommended)
-
-The repo includes **AE Cookie Extractor** (`extension/` folder) — it copies your whole
-AliExpress login in one click, exactly in the format the bot wants:
-
-1. Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select `extension/`
-2. Log in at [aliexpress.com](https://aliexpress.com), click the extension icon → **Copy All Cookies**
-3. Wait for `✅ Copied N cookies`, then in Telegram: `/addaccount` → paste
-
-Full click-by-click with pictures-described steps: [TUTORIAL.md](TUTORIAL.md#step-7--install-the-cookie-helper-one-time-2-minutes).
-
-### Option B — manual DevTools copy
-`name=value; name=value; …` string (must include `_m_h5_tk` and `_m_h5_tk_enc`),
-then `/addaccount` and paste.
-
-> ⚠️ Sessions expire (typically days to weeks — AliExpress binds them to IP/device).
-> The bot tells you when a refresh is needed. Collecting from your own home IP keeps
-> sessions alive longest.
-
-## Bot commands
-
-| Command | Description |
-|---------|-------------|
-| `/start` | Welcome + setup buttons |
-| `/help` | Full help + cookie guide |
-| `/addaccount` | Guided account import (paste cookies, set name) |
-| `/removeaccount [id]` | Remove an account |
-| `/accounts` | List accounts + status |
-| `/collect [id]` | Collect now (all accounts or one) |
-| `/status` | Today's collection summary |
-| `/schedule` | Show last/next sweep (rolling 24h clock) |
-| `/debug` | Inspect the coin page + screenshot (temp files auto-deleted) |
 
 ---
 
-## Running 24/7
+## 🍪 How to Connect Your AliExpress Account (1 Minute)
 
-**Linux VPS (recommended for always-on):**
-```bash
-sudo cp aliexpress-coin-bot.service /etc/systemd/system/
-sudo systemctl enable --now aliexpress-coin-bot
-```
-Free-tier option: Oracle Cloud *Always Free* VM (2 OCPUs/12GB). Note: datacenter IPs
-shorten AliExpress session life vs. a home IP.
+1. Open Chrome and go to `chrome://extensions`.
+2. Toggle **Developer mode** ON (top-right corner).
+3. Click **Load unpacked** and select the `extension` folder inside this bot folder.
+4. Go to [aliexpress.com](https://aliexpress.com) (make sure you are logged in).
+5. Click the puzzle icon / **AE Cookie Extractor** extension icon and click **Copy All Cookies**.
+6. Open your Telegram bot, send `/addaccount`, and paste! That's it!
 
-**Docker:**
-```bash
-docker build -t coin-bot .
-docker run -d --restart unless-stopped --env-file .env -v coin-data:/app/data --name coin-bot coin-bot
-```
-
-**Windows:** `start.bat` for a console run, or `start-bg.vbs` (hidden, auto-restart loop)
-launched from Task Scheduler at logon.
-
-**Won't work:** Vercel/Netlify (no persistent Chromium), Cloudflare Workers free tier
-(10 min browser/day + needs a full rewrite), Render Free (sleeps after 15 min idle —
-scheduled runs get missed).
-
-## Optional: keep debug artifacts
-
-Error screenshots/HTML are **off by default**. To keep them for troubleshooting:
-
-```env
-DEBUG_ARTIFACTS=true
-```
-
-They accumulate in `data/debug/` (auto-pruned to the 20 newest).
+Your bot will now collect coins automatically every 24 hours in the background.
 
 ---
 
-## Troubleshooting
+## 📢 Telegram Deals & Community Hub
 
-| Issue | Fix |
-|-------|-----|
-| `Session expired` | Refresh cookies → `/addaccount` again (accounts marked expired are skipped automatically) |
-| `browserType.launch: Executable doesn't exist` | Run `npx playwright install chromium` |
-| Bot not responding | Check `BOT_TOKEN` / `ADMIN_CHAT_ID`; confirm no second instance is polling (two instances = 409 conflicts) |
-| Page layout changed | `/debug` shows live buttons/classes — update selectors in `src/collector.js` |
+Unlock the full power of your coins with our partner ecosystem:
 
-## Project layout
-
-```
-src/
-├── index.js      — entry point, boot + catch-up
-├── bot.js        — Telegram commands + inline keyboards
-├── collector.js  — Playwright automation (selectors, claims, verification)
-├── scheduler.js  — daily schedule (setTimeout chain, no cron tick)
-├── db.js         — sql.js storage (accounts, collection_logs, settings)
-├── crypto.js     — AES-256 cookie encryption
-└── utils.js      — formatting helpers
-extension/        — Chrome cookie-export helper (load unpacked)
-```
-
-`CHAT_CONTEXT.md` is the living A→Z timeline; `AGENTS.md` holds the contributor rules
-(every change must append a timeline entry).
+| Channel / Bot | Purpose | Link |
+|---|---|---|
+| **@DzAliexpress0** | Handpicked deals with up to 70% Coin discounts & Canadian/Korean region prices | [Join Channel](https://t.me/DzAliexpress0) |
+| **@Alilo07BOT** | Send any AliExpress product URL to instantly convert it to max coin discount link | [Open Bot](https://t.me/Alilo07BOT) |
 
 ---
 
-## 🤝 Contributing
+## 🛡️ Built-in Channel Membership Guard
 
-Open source — PRs and issues welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md)
-and [SECURITY.md](SECURITY.md) first. If this saves you clicks every day, leave a ⭐.
+To ensure a thriving community, this bot verifies that users are subscribed to **[@DzAliexpress0](https://t.me/DzAliexpress0)** before enabling daily automated collection sweeps.
+
+---
+
+## 📋 Bot Commands
+
+| Command | Action |
+|---|---|
+| `/start` | Open menu & verify channel membership |
+| `/addaccount` | Link AliExpress account via cookies |
+| `/collect` | Collect daily coins right now |
+| `/status` | View coins balance & today's collection log |
+| `/accounts` | Manage connected AliExpress accounts |
+| `/help` | Complete setup & cookie guide |
+
+---
 
 ## License
-
-MIT — see [LICENSE](LICENSE).
+MIT — Open source for all AliExpress deal hunters.
