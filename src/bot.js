@@ -20,6 +20,7 @@ const {
   formatStatusTable,
   formatTime,
   formatResultLine,
+  sleep,
 } = require("./utils");
 const scheduler = require("./scheduler");
 
@@ -117,7 +118,7 @@ function createBot() {
       "/collect — Collect coins now",
       "/status — Today's summary",
       "/schedule HH:MM TZ — Set daily time",
-      "/debug — Diagnose collection issues",
+      "/debug [id] — Diagnose collection issues (per account)",
       "/help — This message",
       "",
       "━━━━━━━━━━━━━━━━━━━━━",
@@ -440,6 +441,10 @@ function createBot() {
       const account = accounts[i];
       const label = account.alias || `#${account.id}`;
 
+      // Stagger back-to-back accounts: N sessions hammering MTOP from one IP
+      // in the same second looks botty and shortens session life.
+      if (i > 0) await sleep(15000);
+
       // Update progress
       try {
         await bot.editMessageText(
@@ -614,8 +619,10 @@ function createBot() {
     );
   });
 
-  // ─── /debug ─────────────────────────────────────────
-  bot.onText(/\/debug/, async (msg) => {
+  // ─── /debug [id] ───────────────────────────────────
+  // With several accounts an id (or the picker below) selects which one is
+  // inspected — previously only the first account was ever checked.
+  bot.onText(/\/debug(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return unauthorized(chatId);
 
@@ -625,7 +632,42 @@ function createBot() {
       return;
     }
 
-    const account = accounts[0];
+    const arg = match?.[1]?.trim();
+    if (arg) {
+      const id = parseInt(arg);
+      if (!accounts.some((a) => a.id === id)) {
+        bot.sendMessage(chatId, `❌ Account #${arg} not found.`);
+        return;
+      }
+      runDebugForAccount(chatId, id);
+      return;
+    }
+
+    if (accounts.length === 1) {
+      runDebugForAccount(chatId, accounts[0].id);
+      return;
+    }
+
+    const keyboard = accounts.map((a) => [
+      {
+        text: `🔍 ${a.alias || `Account #${a.id}`}`,
+        callback_data: `debug_${a.id}`,
+      },
+    ]);
+
+    bot.sendMessage(chatId, "🔍 *Select account to inspect:*", {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: keyboard },
+    });
+  });
+
+  async function runDebugForAccount(chatId, accountId) {
+    const account = db.getAccount(accountId);
+    if (!account || account.chat_id !== String(chatId)) {
+      bot.sendMessage(chatId, "❌ Account not found.");
+      return;
+    }
+
     let cookies;
     try {
       cookies = decrypt(account.cookies_enc);
@@ -652,10 +694,19 @@ function createBot() {
       lines.push(`URL: \`${info.url || "(empty)"}\``);
       lines.push(`Session: ${info.login ? "⚠️ EXPIRED (login page)" : "✅ logged in"}`);
       lines.push(`Balance: ${formatCoins(info.balance)}`);
+      lines.push(`Sign button: "${info.signButton || "(unknown)"}"`);
+      lines.push(`Today claimed: ${info.todayChecked ? "✅ yes" : "❌ no"}`);
+      if (info.streak > 0) lines.push(`Streak: day ${info.streak}`);
+      if (info.days && info.days.length) {
+        for (const d of info.days.slice(0, 7)) {
+          lines.push(`• ${d.day}: ${formatCoins(d.coins)}${d.checked ? " (claimed)" : ""}`);
+        }
+      }
+      lines.push(`Modal open: ${info.hasModal ? "⚠️ yes" : "no"}`);
       lines.push("");
       lines.push("*Visible buttons:*");
       if (info.texts.length) {
-        for (const t of info.texts.slice(0, 12)) lines.push(`• ${t}`);
+        for (const t of info.texts.slice(0, 10)) lines.push(`• ${t}`);
       } else {
         lines.push("• (none)");
       }
@@ -683,7 +734,7 @@ function createBot() {
     }
 
     if (process.env.DEBUG_ARTIFACTS !== "true") clearDebugFiles();
-  });
+  }
 
   // ─── Callback Queries (inline keyboard) ──────────────
   bot.on("callback_query", async (query) => {
@@ -764,6 +815,13 @@ function createBot() {
       return;
     }
 
+    // Debug specific account
+    if (data.startsWith("debug_")) {
+      const id = parseInt(data.replace("debug_", ""));
+      runDebugForAccount(chatId, id);
+      return;
+    }
+
     // Pagination
     if (data.startsWith("accounts_page_")) {
       const page = parseInt(data.replace("accounts_page_", ""));
@@ -823,6 +881,40 @@ function createBot() {
         { parse_mode: "Markdown" },
       );
       return;
+    }
+
+    // Duplicate-session guard: pasting the same account's cookies twice creates
+    // two bot accounts fighting over one AliExpress session (double sweeps,
+    // confusing +1/+40 reports). Compare the _m_h5_tk fingerprint only — values
+    // are never printed.
+    const newTk = (cookies.match(/(?:^|;\s*)_m_h5_tk=([^;]+)/) || [])[1];
+    if (newTk) {
+      const existing = db.getAccountsByChat(String(chatId));
+      for (const a of existing) {
+        let oldCookies = "";
+        try {
+          oldCookies = decrypt(a.cookies_enc);
+        } catch {
+          continue;
+        }
+        const oldTk = (oldCookies.match(/(?:^|;\s*)_m_h5_tk=([^;]+)/) || [])[1];
+        if (oldTk && oldTk === newTk) {
+          pendingAddAccount.delete(chatId);
+          bot.sendMessage(
+            chatId,
+            [
+              "⚠️ These cookies match your existing account",
+              `*#${a.id}* ${a.alias || "unnamed"}.`,
+              "",
+              "Adding them again would double-collect one AliExpress session.",
+              "Remove the old one first (/removeaccount) or paste cookies",
+              "from a DIFFERENT AliExpress account.",
+            ].join("\n"),
+            { parse_mode: "Markdown" },
+          );
+          return;
+        }
+      }
     }
 
     // Encrypt and ask for alias

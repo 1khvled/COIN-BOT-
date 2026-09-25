@@ -272,3 +272,17 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   retry clicks modal selectors only, never generic task buttons.
 - Verified: `node --check` clean (collector/bot/scheduler); restart via RuntimeHelper
   stop/kill/start; process + Telegram + boot log checked before push.
+
+### 2026-09-25 — Per-account debug + multi-account guards (user: debug this stuff, esp. with more accounts)
+- `/debug` only ever inspected `accounts[0]` — the secondary's +1-vs-40 failure was
+  undiagnosable. Now `/debug [id]` + account picker (`debug_<id>` callback); report
+  adds sign-button text, today-claimed state, streak + calendar values, modal-open flag
+  (`debugInspect` returns them; `src/collector.js`, `src/bot.js`).
+- `/addaccount` duplicate-session guard: pasting one AliExpress session twice (double
+  sweeps, confusing +1/+40 reports) is now blocked with a pointer to the existing
+  account — compared by `_m_h5_tk` fingerprint, values never printed (`src/bot.js`).
+- 15s stagger between back-to-back accounts in manual collect-all (`src/bot.js`) and
+  scheduled sweeps (`src/scheduler.js`): N sessions hammering MTOP from one IP in the
+  same second looks botty and shortens session life.
+- Verified: `node --check` clean (all three files); restart via RuntimeHelper, clean
+  boot, rolling clock untouched (next sweep unchanged, no accidental sweep).

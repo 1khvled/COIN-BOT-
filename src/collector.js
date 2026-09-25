@@ -904,7 +904,10 @@ async function collectWithRetry(cookies, opts = {}) {
 
 /**
  * Deep page inspection — used by the /debug command to diagnose issues.
- * @returns {Promise<{url: string, login: boolean, balance: number, aecoinClasses: string[], texts: string[], shotPath: string|null}>}
+ * Covers the exact signals the collector decides on (sign-in button text,
+ * today-claimed state, streak/calendar, stray modals) so a +1-instead-of-40
+ * style failure can be diagnosed per account without guessing.
+ * @returns {Promise<{url: string, login: boolean, balance: number, signButton: string, todayChecked: boolean, streak: number, days: Array, hasModal: boolean, aecoinClasses: string[], texts: string[], shotPath: string|null}>}
  */
 async function debugInspect(cookies) {
   let browser = null;
@@ -933,6 +936,27 @@ async function debugInspect(cookies) {
     const url = page.url();
     const login = await isLoginPage(page);
     const balance = await extractBalance(page);
+
+    // The exact signals collectAll() decides on — surfaced for diagnosis.
+    const signButton = await page
+      .evaluate(() => {
+        const el = document.querySelector("#signButton");
+        return el ? (el.innerText || "").trim().replace(/\s+/g, " ").slice(0, 60) : "(no #signButton)";
+      })
+      .catch(() => "(unreadable)");
+    const todayChecked = await isTodayChecked(page);
+    const checkIn = await getCheckInInfo(page);
+    const hasModal = await page
+      .evaluate(() => {
+        const sels = ["[class*='dialog']", "[class*='modal']", "[class*='popup']", "[class*='calendar']"];
+        return sels.some((s) => {
+          const el = document.querySelector(s);
+          if (!el) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        });
+      })
+      .catch(() => false);
 
     const aecoinClasses = await page
       .evaluate(() => {
@@ -978,9 +1002,9 @@ async function debugInspect(cookies) {
       pruneDebugFiles();
     } catch {}
 
-    return { url, login, balance, aecoinClasses, texts, shotPath, dataPath, htmlPath };
+    return { url, login, balance, signButton, todayChecked, streak: checkIn.streak || 0, days: checkIn.days || [], hasModal, aecoinClasses, texts, shotPath, dataPath, htmlPath };
   } catch (err) {
-    return { url: "", login: false, balance: 0, aecoinClasses: [], texts: [], shotPath: null, dataPath: null, error: err.message };
+    return { url: "", login: false, balance: 0, signButton: "", todayChecked: false, streak: 0, days: [], hasModal: false, aecoinClasses: [], texts: [], shotPath: null, dataPath: null, error: err.message };
   } finally {
     await browser?.close().catch(() => {});
   }

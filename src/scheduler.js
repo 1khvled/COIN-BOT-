@@ -12,7 +12,11 @@
 const db = require('./db');
 const { collectWithRetry } = require('./collector');
 const { decrypt } = require('./crypto');
-const { formatCoins, formatResultLine, formatTime } = require('./utils');
+const { formatCoins, formatResultLine, formatTime, sleep } = require('./utils');
+
+// Pause between back-to-back accounts in one sweep (one IP hammering MTOP
+// for N sessions in the same second looks botty and shortens session life).
+const ACCOUNT_STAGGER_MS = 15000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETRY_MS = 60 * 60 * 1000; // backoff when a run logged nothing at all
@@ -35,6 +39,7 @@ async function runCollectionForChat(chatId) {
   const accounts = db.getAccountsByChat(chatId);
   if (!accounts.length) return;
 
+  let ran = 0;
   for (const account of accounts) {
     // A previous run already confirmed this session cannot authenticate.
     // Skip it until the user adds fresh cookies instead of opening Chromium
@@ -43,6 +48,9 @@ async function runCollectionForChat(chatId) {
       console.log(`[scheduler] Skipping expired account #${account.id}`);
       continue;
     }
+
+    if (ran > 0) await sleep(ACCOUNT_STAGGER_MS);
+    ran++;
 
     let cookies;
     try {
