@@ -932,6 +932,11 @@ async function debugInspect(cookies) {
       })
       .catch(() => {});
     await waitForCoinPage(page);
+    // The SPA renders shell first, calendar/check-in data seconds later (live
+    // test: reading immediately gave empty signButton/streak on a valid session).
+    // Wait for the actionable UI like collectAll() does, then let it settle.
+    await waitForAny(page, [...COLLECT_SELECTORS, ...LOGIN_SELECTORS], RENDER_TIMEOUT);
+    await page.waitForTimeout(2000);
 
     const url = page.url();
     const login = await isLoginPage(page);
@@ -946,14 +951,21 @@ async function debugInspect(cookies) {
       .catch(() => "(unreadable)");
     const todayChecked = await isTodayChecked(page);
     const checkIn = await getCheckInInfo(page);
+    // Claim-popup detection: a visible dialog/modal/popup/calendar that actually
+    // contains a Collect/Claim/Get button (plain containers and cookie banners
+    // don't count — they made this flag noise on login pages).
     const hasModal = await page
       .evaluate(() => {
-        const sels = ["[class*='dialog']", "[class*='modal']", "[class*='popup']", "[class*='calendar']"];
-        return sels.some((s) => {
-          const el = document.querySelector(s);
-          if (!el) return false;
-          const r = el.getBoundingClientRect();
-          return r.width > 0 && r.height > 0;
+        const boxes = [...document.querySelectorAll("[class*='dialog'],[class*='modal'],[class*='popup'],[class*='calendar']")];
+        return boxes.some((box) => {
+          const r = box.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) return false;
+          const btns = [...box.querySelectorAll("button")];
+          return btns.some((b) => {
+            const t = (b.innerText || "").trim();
+            if (!t || b.getBoundingClientRect().width <= 0) return false;
+            return /collect|claim|\u0627\u062c\u0645\u0639|\u0627\u0633\u062a\u0644\u0627\u0645|\u0627\u062d\u0635\u0644/i.test(t);
+          });
         });
       })
       .catch(() => false);
@@ -979,7 +991,15 @@ async function debugInspect(cookies) {
           const cls = String(el.className || "");
           if (cls.includes("digit")) return; // balance digit rolls = noise
           const t = (el.innerText || "").trim().replace(/\s+/g, " ").slice(0, 80);
-          if (t && !/^[\d][\d ]{5,}[\d]?$/.test(t)) out.push(t);
+          if (!t) return;
+          if (/^[\d][\d ]{5,}[\d]?$/.test(t)) return; // digit strips = noise
+          // Balance/US-price fragments ("0 1 2 3 ... ≈ US $7.49") carry no
+          // diagnostic value: skip digit-strip-headed containers and anything
+          // without a real word (4+ letters).
+          const headDigits = (t.slice(0, 20).match(/[0-9]/g) || []).length;
+          if (headDigits >= 10) return;
+          if (!/[a-zA-Z\u0600-\u06FF]{4,}/.test(t)) return;
+          out.push(t);
         });
         return out.slice(0, 30);
       })

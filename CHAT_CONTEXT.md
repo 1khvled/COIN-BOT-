@@ -286,3 +286,23 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   same second looks botty and shortens session life.
 - Verified: `node --check` clean (all three files); restart via RuntimeHelper, clean
   boot, rolling clock untouched (next sweep unchanged, no accidental sweep).
+
+### 2026-09-25 — Live-debug verdict: +1 was legitimate + debugInspect hardening
+- CORRECTION of the previous entry's theory: read-only live inspect of all 4 accounts
+  (new `debugInspect` fields, zero clicks/writes) shows secondary #12's calendar is
+  literally `Today: 1 (claimed)`, streak 6, page text `Get 1 check-in coins tomorrow!`
+  vs main #9 `Today: 70`, streak 29, `Get 40 check-in coins tomorrow!`. The +1 was
+  correct — that account is on a 1-coin/day tier, not a missed 40. Prior modal fix kept
+  as safety net (harmless), but no claim bug reproduced.
+- Multi-account state found live: #10/#11 land on the login page (EXPIRED) — scheduler
+  already skips them; user must refresh via `/addaccount`. Adding accounts works;
+  sessions just die every days-weeks per account.
+- 69-account math checked live: 69-line collect-all message ≈2943 chars (UNDER the
+  4096 cap — earlier cap worry was wrong); real scale risks are 69 separate scheduler
+  notifications vs Telegram rate limits, ~1h+ sweep duration, and one-IP throttling.
+- `debugInspect` bugs found by live testing and fixed (`src/collector.js`): partial-SPA
+  render flakiness (second run read empty signButton/streak — added collect/login
+  selector wait + 2s settle, 3 runs deterministic since), `hasModal` false positives
+  (now requires a visible Collect/Claim button inside), button-text noise (digit-strip
+  head + 4-letter-word filters).
+- Verified: `node --check` clean; restarted (clean boot); temp scripts/artifacts removed.
