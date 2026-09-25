@@ -260,3 +260,15 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   MIN(timestamp) on the latest sweep day; extra same-day runs never move the clock.
 - Verified vs real DB (anchor 07:00:27Z, next ≈11.75h) + boot log
   ("Next sweep at 2026-09-09T07:00:27Z"). Docs reworded. Committed `468757c`, pushed.
+
+### 2026-09-25 — Daily sign-in modal two-step fix (user: secondary claims +1 instead of 40)
+- Root cause: first click on `#signButton` often only OPENS the check-in calendar modal
+  (40 not credited instantly); old retry blindly re-clicked generic `COLLECT_SELECTORS`
+  and a +1 task popup got misreported as `Daily Sign-in +1`, leaving the real 40 unclaimed.
+  `doneAfter` also reused stale pre-click flags instead of re-checking page state.
+- Fix in `src/collector.js`: `#signButton` skipped when it reads "Earn more coins";
+  added modal-scoped `clickModalClaim()` (dialog/modal/popup/calendar only); first-click
+  wait 3s→5s; `doneAfter` re-evaluated fresh via `alreadyDone()` + `isTodayChecked()`;
+  retry clicks modal selectors only, never generic task buttons.
+- Verified: `node --check` clean (collector/bot/scheduler); restart via RuntimeHelper
+  stop/kill/start; process + Telegram + boot log checked before push.

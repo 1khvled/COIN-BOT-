@@ -584,9 +584,25 @@ async function collectAll(cookies, opts = {}) {
     const dataInfo = analyzePageData(pageData);
     const checkInFromData = checkInDoneFromDataFlag(dataInfo.checkIn);
 
+    const signButtonText = async () => {
+      try {
+        return (
+          (await page.locator("#signButton").first().innerText({ timeout: 3000 }).catch(() => "")) || ""
+        ).trim();
+      } catch {
+        return "";
+      }
+    };
+
+    const isEarnMoreState = (t) => /earn more/i.test(t || "");
+
     const collectBtnVisible = async () => {
       for (const s of COLLECT_SELECTORS) {
-        if (await visible(page, s)) return s;
+        if (!(await visible(page, s))) continue;
+        // #signButton is dual-purpose: after a successful check-in it reads
+        // "Earn more coins" and must NOT be treated as a collect button.
+        if (s === "#signButton" && isEarnMoreState(await signButtonText())) continue;
+        return s;
       }
       return null;
     };
@@ -594,12 +610,50 @@ async function collectAll(cookies, opts = {}) {
     const clickCollect = async () => {
       for (const s of COLLECT_SELECTORS) {
         if (!(await visible(page, s))) continue;
+        if (s === "#signButton" && isEarnMoreState(await signButtonText())) continue;
         try {
           await page.locator(s).first().click({ force: true, timeout: ACTION_TIMEOUT });
           console.log(`[collector] Clicked: ${s}`);
           return s;
         } catch (err) {
           console.log(`[collector] Click failed on ${s}: ${err.message}`);
+        }
+      }
+      return null;
+    };
+
+    // Second-step claim inside the check-in calendar modal/dialog.
+    // The first click on #signButton often just OPENS this modal — the 40-coin
+    // reward needs an explicit click on the Today card / modal Collect button.
+    // These selectors are intentionally scoped to dialog/modal/calendar so a
+    // stray +1 task button is never mistaken for the daily sign-in.
+    const MODAL_CLAIM_SELECTORS = [
+      '[class*="dialog"] button:has-text("Collect")',
+      '[class*="modal"] button:has-text("Collect")',
+      '[class*="popup"] button:has-text("Collect")',
+      '[class*="calendar"] button:has-text("Collect")',
+      '[class*="dialog"] button:has-text("Claim")',
+      '[class*="modal"] button:has-text("Claim")',
+      '[class*="popup"] button:has-text("Claim")',
+      '[class*="calendar"] button:has-text("Claim")',
+      '[class*="rewardItem"]:has-text("Today")',
+      '[class*="reward-item"]:has-text("Today")',
+      '[class*="checkin"] button:has-text("Collect")',
+      '[class*="signin"] button:has-text("Collect")',
+    ];
+
+    const clickModalClaim = async () => {
+      for (const s of MODAL_CLAIM_SELECTORS) {
+        const btn = page.locator(s).first();
+        if (!(await btn.isVisible().catch(() => false))) continue;
+        const txt = (await btn.innerText().catch(() => "")).trim();
+        if (/earn more/i.test(txt)) continue;
+        try {
+          await btn.click({ force: true, timeout: ACTION_TIMEOUT });
+          console.log(`[collector] Clicked modal: ${s} ("${txt.slice(0, 40)}")`);
+          return s;
+        } catch (err) {
+          console.log(`[collector] Modal click failed on ${s}: ${err.message}`);
         }
       }
       return null;
@@ -632,13 +686,16 @@ async function collectAll(cookies, opts = {}) {
         });
       }
     } else {
-      // Click the collect button
+      // Click the collect button (one click opens the calendar modal on some
+      // accounts — the reward needs a second, modal-scoped click).
       const clicked = await clickCollect();
-      await page.waitForTimeout(3000);
+      console.log(`[collector] signButton before: "${(await signButtonText()).slice(0, 60)}" balBefore=${balBefore}`);
+      await page.waitForTimeout(5000);
 
-      const balAfter = await readBalanceStable(page);
-      const btnAfter = await collectBtnVisible();
-      const doneAfter = (await alreadyDone(page)) || checkInFromData || todayChecked;
+      let balAfter = await readBalanceStable(page);
+      let btnAfter = await collectBtnVisible();
+      // NOTE: re-evaluate page state fresh — never reuse pre-click flags here.
+      let doneAfter = (await alreadyDone(page)) || (await isTodayChecked(page));
       if (balAfter > 0) balance = balAfter;
 
       const reportGained = (after) => {
@@ -653,8 +710,22 @@ async function collectAll(cookies, opts = {}) {
       };
 
       if (balAfter > balBefore) {
-        // Balance went up — real collection, exact delta
-        reportGained(balAfter);
+        // Balance went up — real collection, exact delta.
+        // Guard: if the modal is still open with an unclaimed 40, don't stop
+        // at a +1 popup — try the modal claim first.
+        const modalOpen = await clickModalClaim();
+        if (modalOpen) {
+          await page.waitForTimeout(3000);
+          const balAfterModal = await readBalanceStable(page);
+          if (balAfterModal > balAfter) {
+            reportGained(balAfterModal);
+            balance = balAfterModal;
+          } else {
+            reportGained(balAfter);
+          }
+        } else {
+          reportGained(balAfter);
+        }
       } else if (!btnAfter || doneAfter) {
         // Button gone or done-state → claimed (now or earlier today)
         if (balBefore === 0 && balAfter === 0) {
@@ -673,13 +744,26 @@ async function collectAll(cookies, opts = {}) {
           });
         }
       } else if (clicked) {
-        // Clicked but nothing visibly changed → try once more before giving up
-        await clickCollect();
-        await page.waitForTimeout(3000);
+        // Clicked but no credit yet — the calendar modal is probably open with
+        // the 40-coin reward unclaimed. NEVER re-click generic COLLECT_SELECTORS
+        // here (that hit a +1 task button and misreported it as Daily Sign-in).
+        // Only click modal-scoped claim buttons.
+        const modalClicked = await clickModalClaim();
+        await page.waitForTimeout(4000);
         const balAfter2 = await readBalanceStable(page);
+        const doneAfter2 = (await alreadyDone(page)) || (await isTodayChecked(page));
+        if (balAfter2 > 0) balance = Math.max(balance, balAfter2);
+        console.log(`[collector] retry: modalClicked=${modalClicked} balBefore=${balBefore} balAfter2=${balAfter2} done=${doneAfter2}`);
         if (balAfter2 > balBefore) {
           reportGained(balAfter2);
           balance = balAfter2;
+        } else if (doneAfter2 || !(await collectBtnVisible())) {
+          push({
+            task: "Daily Sign-in",
+            success: true,
+            coins: 0,
+            message: "Already done today",
+          });
         } else {
           await saveDebug("uncertain", page);
           push({
