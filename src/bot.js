@@ -22,6 +22,7 @@ const {
   formatResultLine,
   sleep,
   sendResilient,
+  escapeMarkdown,
 } = require("./utils");
 const scheduler = require("./scheduler");
 
@@ -56,6 +57,22 @@ function createBot() {
 
   // Register the bot with the scheduler so it can send notifications
   scheduler.setBotInstance(bot);
+
+  // ─── Launch hardening: no floating Telegram call may ever crash the process ─
+  // Every bot.sendMessage/editMessageText/sendPhoto/answerCallbackQuery without
+  // an awaited try/catch becomes an unhandled rejection on the next network
+  // blip (429/502/ECONNRESET — all observed in production) and Node kills the
+  // bot. Route them all through a guard that logs and resolves null instead.
+  // Callers that NEED the result (progress message ids) still await and must
+  // null-check — see runCollectionForAccount / runCollectionForAllAccounts.
+  for (const m of ["sendMessage", "editMessageText", "sendPhoto", "answerCallbackQuery"]) {
+    const orig = bot[m].bind(bot);
+    bot[m] = (...args) =>
+      orig(...args).catch((err) => {
+        console.error(`[telegram] ${m} failed: ${err && err.message}`);
+        return null;
+      });
+  }
 
   // ─── Channel Subscription & Auth Guard ─────────────────
   const REQUIRED_CHANNEL = process.env.REQUIRED_CHANNEL || "@DzAliexpress0";
@@ -136,8 +153,8 @@ function createBot() {
       "3\\. Bot collects coins daily\\!",
       "",
       "🪙 *Want to spend your coins with maximum discount?*",
-      `Check out our partner deals channel: ${REQUIRED_CHANNEL.replace(/_/g, "\\_")}`,
-      `Or convert any product link with ${DEALS_BOT.replace(/_/g, "\\_")}\\!`,
+      `Check out our partner deals channel: ${escapeMarkdown(REQUIRED_CHANNEL)}`,
+      `Or convert any product link with ${escapeMarkdown(DEALS_BOT)}\\!`,
       "",
       "Tap a button below to get started 👇",
     ].join("\n");
@@ -410,7 +427,8 @@ function createBot() {
 
     const label = account.alias || `#${account.id}`;
 
-    // Send progress message
+    // Send progress message (guarded send: null on failure — abort instead of
+    // crashing on progressMsg.message_id two lines down)
     const progressMsg = await bot.sendMessage(
       chatId,
       `⏳ Collecting for *${label}*...`,
@@ -418,6 +436,10 @@ function createBot() {
         parse_mode: "Markdown",
       },
     );
+    if (!progressMsg) {
+      console.error("[telegram] progress send failed, aborting single collect");
+      return;
+    }
 
     let cookies;
     try {
@@ -502,6 +524,10 @@ function createBot() {
       `⏳ Collecting for *${accounts.length} account(s)*... (~1 min each, leave it running)`,
       { parse_mode: "Markdown" },
     );
+    if (!progressMsg) {
+      console.error("[telegram] progress send failed, aborting collect-all");
+      return;
+    }
 
     const allLines = ["🪙 *Collection Results*", ""];
     let grandTotal = 0;

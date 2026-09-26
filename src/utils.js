@@ -112,18 +112,27 @@ function parseSchedule(input) {
 async function sendResilient(bot, chatId, text, opts = {}) {
   const editMessageId = opts.editMessageId || null;
   const retries = opts.retries || 4;
-  const base = { parse_mode: "Markdown", ...(opts.extra || {}) };
+  // Default legacy Markdown; pass parseMode: "MarkdownV2" for V2-escaped text,
+  // or parseMode: null for plain text.
+  const parseMode = opts.parseMode === undefined ? "Markdown" : opts.parseMode;
+  const base = { ...(parseMode ? { parse_mode: parseMode } : {}), ...(opts.extra || {}) };
   let lastErr = null;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      let res;
       if (editMessageId && attempt === 1) {
-        await bot.editMessageText(text, {
+        res = await bot.editMessageText(text, {
           chat_id: chatId,
           message_id: editMessageId,
           ...base,
         });
       } else {
-        await bot.sendMessage(chatId, text, base);
+        res = await bot.sendMessage(chatId, text, base);
+      }
+      // NOTE: bot methods are guarded (see createBot) and resolve null instead
+      // of throwing — treat that as failure so retries + plain fallback engage.
+      if (res === null || res === undefined || res === false) {
+        throw new Error("delivery failed (guarded, detail logged above)");
       }
       return true;
     } catch (err) {
@@ -136,6 +145,18 @@ async function sendResilient(bot, chatId, text, opts = {}) {
       console.error(`[telegram] delivery attempt ${attempt}/${retries} failed: ${err && err.message}`);
       if (attempt < retries) await sleep(waitMs);
     }
+  }
+  // Last resort: plain text with no parse mode — always parses, so a Markdown
+  // entity error in dynamic content (alias, page text) degrades instead of dying.
+  try {
+    const res = await bot.sendMessage(chatId, text);
+    if (res === null || res === undefined || res === false) {
+      throw new Error("plain fallback failed (guarded, detail logged above)");
+    }
+    console.error("[telegram] delivered as plain-text fallback");
+    return true;
+  } catch (err) {
+    lastErr = err;
   }
   console.error(
     `[telegram] GIVING UP delivering ${text.length}-char result to ${chatId}: ${lastErr && lastErr.message}`

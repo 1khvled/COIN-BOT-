@@ -384,3 +384,20 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Observability: `collectAll` logs `finished in Xs (total=N)` per run; progress
   message now says `~1 min each, leave it running`.
 - Verified: `node --check` clean, poll-logic unit test pass, restarted clean boot.
+
+### 2026-09-27 — Launch audit: crash-proof Telegram layer (CEO: zero bugs)
+- Audit found the real crash class: ~40 `bot.sendMessage/editMessageText` calls with
+  no awaited try/catch become unhandled rejections on the next network blip
+  (1079 transient polling errors on record: ECONNRESET/EAI_AGAIN/502/429) and Node
+  kills the bot. Log shows zero 401/409/TypeError/ReferenceError — token and code
+  are healthy; flaky network + unguarded sends was the only crash vector.
+- Fix (`src/bot.js`, `src/utils.js`): ALL sends now route through a guard that logs
+  and resolves null instead of rejecting; progress sends null-check and abort
+  gracefully; `sendResilient` detects guard-nulls (retries + plain-text last resort
+  still engage) and gained `parseMode` opt; `/start` V2 text uses full
+  `escapeMarkdown` on env values instead of underscore-only hack.
+- Verified: 4-case delivery test (throwing bot, guarded bot, dead bot, V2 escape)
+  ALL PASS; `node --check` clean on all files; restarted (PID boot clean).
+- Still open (user-side, not code): rotate the chat-exposed BOT_TOKEN, join own
+  channel (gate fail-opens with 400 since bot isn't channel admin), keep adding
+  accounts as sessions expire. Next scheduled sweep will exercise collect+delivery.
