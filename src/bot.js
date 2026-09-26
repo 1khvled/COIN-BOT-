@@ -994,10 +994,26 @@ function createBot() {
 
     // Duplicate-session guard: pasting the same account's cookies twice creates
     // two bot accounts fighting over one AliExpress session (double sweeps,
-    // confusing +1/+40 reports). Compare the _m_h5_tk fingerprint only — values
-    // are never printed.
-    const newTk = (cookies.match(/(?:^|;\s*)_m_h5_tk=([^;]+)/) || [])[1];
-    if (newTk) {
+    // confusing reports). Fingerprint on USER-identity cookies (cookie2/unb/
+    // _tb_token_/lgc/tracknick) — never on _m_h5_tk alone: that token is
+    // device/time-bound, identical across different logins in one browser and
+    // rotating over time, so it false-blocks switched accounts and misses real
+    // duplicates. Values are never printed.
+    const pickCookie = (jar, name) =>
+      ((jar.match(new RegExp("(?:^|;\\s*)" + name + "=([^;]+)")) || [])[1] || "");
+    const sessionFp = (jar) => {
+      const parts = ["cookie2", "unb", "_tb_token_", "lgc", "tracknick"].map((n) =>
+        pickCookie(jar, n),
+      );
+      return { tk: pickCookie(jar, "_m_h5_tk"), parts, hasId: parts.some(Boolean) };
+    };
+    const isSameSession = (x, y) => {
+      if (x.hasId && y.hasId) return x.parts.join("|") === y.parts.join("|");
+      if (!x.hasId && !y.hasId && x.tk && y.tk) return x.tk === y.tk; // legacy fallback
+      return false; // can't tell (partial paste?) — don't block, collection verifies
+    };
+    const newFp = sessionFp(cookies);
+    {
       const existing = db.getAccountsByChat(String(chatId));
       for (const a of existing) {
         let oldCookies = "";
@@ -1006,8 +1022,7 @@ function createBot() {
         } catch {
           continue;
         }
-        const oldTk = (oldCookies.match(/(?:^|;\s*)_m_h5_tk=([^;]+)/) || [])[1];
-        if (oldTk && oldTk === newTk) {
+        if (isSameSession(newFp, sessionFp(oldCookies))) {
           pendingAddAccount.delete(chatId);
           bot.sendMessage(
             chatId,

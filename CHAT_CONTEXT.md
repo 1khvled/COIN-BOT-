@@ -335,3 +335,13 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Remaining user steps: `/start`, re-add accounts via `/addaccount`, join own channel
   (subscription gate). TOKEN SECURITY: token now sits in this chat transcript — user
   must revoke via @BotFather and replace it in `.env` via Notepad (never via chat).
+
+### 2026-09-26 — Duplicate guard false-blocked switched accounts (user: switched acc, still blocked)
+- Root cause: guard fingerprinted `_m_h5_tk` only — that token is device/time-bound
+  (same value across different logins in one browser, rotates over time), so it
+  false-blocked a real account switch and would miss real duplicates. Now fingerprints
+  on user-identity cookies (`cookie2`/`unb`/`_tb_token_`/`lgc`/`tracknick`); `_m_h5_tk`
+  is only a fallback when neither paste carries identity cookies (`src/bot.js`).
+- Verified with 5 synthetic cases (file-based, no secrets): switched-login allowed,
+  same-user refresh blocked, legacy no-identity same-tk blocked, differing/partial
+  pastes allowed. `node --check` clean; restarted, clean boot; user can re-paste now.
