@@ -358,3 +358,17 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - SECURITY: that chat paste burned the session — user must change password / log out
   web sessions FIRST (kills it), then export fresh cookies and `/addaccount` in
   Telegram only. Never paste cookies or tokens in chat again.
+
+### 2026-09-26 — "Stuck on Collecting" — results delivered to nobody (user: STUCK)
+- Root cause found in DB, not guesses: 21:10–21:11 run LOGGED both accounts fine
+  (`done`, 0 coins — both already claimed today) and the scheduler re-armed, but the
+  progress message never updated — final `editMessageText` threw (transient Telegram
+  429/502s seen all day) and the fallback `sendMessage` was un-awaited/un-caught, so
+  results died silently. Single-account path had a bare unguarded edit too.
+- Fix: new `sendResilient()` in `src/utils.js` (edit-first, fresh-send fallback,
+  4 attempts, honors Telegram `retry_after`, loud `console.error` + give-up line
+  instead of silence). Wired into both collect paths (`src/bot.js`) and scheduler
+  `notify()` (`src/scheduler.js`); progress-edit failures now logged.
+- Verified with fake-bot test: 429-then-success delivers after ~1.5s; always-fail
+  returns false without throwing. `node --check` clean; restarted, clean boot.
+  Re-run `/collect` — worst case the failure is now in the log, not invisible.

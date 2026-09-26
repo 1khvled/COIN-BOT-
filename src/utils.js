@@ -102,6 +102,47 @@ function parseSchedule(input) {
   return { time: `${hh}:${mm}`, timezone: tz };
 }
 
+/**
+ * Deliver a result message to Telegram, surviving transient API failures
+ * (429 flood-wait, 502s — both observed in the wild). Tries editing the
+ * progress message first, then sends a fresh message; honors Telegram's
+ * retry_after; logs visibly instead of dropping results silently.
+ * @returns {Promise<boolean>} true if delivered
+ */
+async function sendResilient(bot, chatId, text, opts = {}) {
+  const editMessageId = opts.editMessageId || null;
+  const retries = opts.retries || 4;
+  const base = { parse_mode: "Markdown", ...(opts.extra || {}) };
+  let lastErr = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (editMessageId && attempt === 1) {
+        await bot.editMessageText(text, {
+          chat_id: chatId,
+          message_id: editMessageId,
+          ...base,
+        });
+      } else {
+        await bot.sendMessage(chatId, text, base);
+      }
+      return true;
+    } catch (err) {
+      lastErr = err;
+      let waitMs = 2000 * attempt;
+      try {
+        const ra = err && err.response && err.response.body && err.response.body.parameters;
+        if (ra && Number.isFinite(ra.retry_after)) waitMs = ra.retry_after * 1000 + 500;
+      } catch {}
+      console.error(`[telegram] delivery attempt ${attempt}/${retries} failed: ${err && err.message}`);
+      if (attempt < retries) await sleep(waitMs);
+    }
+  }
+  console.error(
+    `[telegram] GIVING UP delivering ${text.length}-char result to ${chatId}: ${lastErr && lastErr.message}`
+  );
+  return false;
+}
+
 module.exports = {
   maskCookies,
   formatCoins,
@@ -111,4 +152,5 @@ module.exports = {
   formatResultLine,
   sleep,
   parseSchedule,
+  sendResilient,
 };

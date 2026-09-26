@@ -21,6 +21,7 @@ const {
   formatTime,
   formatResultLine,
   sleep,
+  sendResilient,
 } = require("./utils");
 const scheduler = require("./scheduler");
 
@@ -481,10 +482,8 @@ function createBot() {
       }
     }
 
-    bot.editMessageText(lines.join("\n"), {
-      chat_id: chatId,
-      message_id: progressMsg.message_id,
-      parse_mode: "Markdown",
+    await sendResilient(bot, String(chatId), lines.join("\n"), {
+      editMessageId: progressMsg.message_id,
     });
 
     // A manual sweep resets the rolling 24h clock.
@@ -525,8 +524,8 @@ function createBot() {
             parse_mode: "Markdown",
           },
         );
-      } catch {
-        /* ignore edit errors */
+      } catch (err) {
+        console.error(`[telegram] progress edit failed (${label}): ${err && err.message}`);
       }
 
       let cookies;
@@ -589,15 +588,9 @@ function createBot() {
     allLines.push("");
     allLines.push(`💰 *Grand Total: ${formatCoins(grandTotal)}*`);
 
-    try {
-      await bot.editMessageText(allLines.join("\n"), {
-        chat_id: chatId,
-        message_id: progressMsg.message_id,
-        parse_mode: "Markdown",
-      });
-    } catch {
-      bot.sendMessage(chatId, allLines.join("\n"), { parse_mode: "Markdown" });
-    }
+    await sendResilient(bot, String(chatId), allLines.join("\n"), {
+      editMessageId: progressMsg.message_id,
+    });
 
     // A manual sweep resets the rolling 24h clock.
     scheduler.reschedule();

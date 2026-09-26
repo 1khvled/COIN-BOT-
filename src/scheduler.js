@@ -12,7 +12,7 @@
 const db = require('./db');
 const { collectWithRetry } = require('./collector');
 const { decrypt } = require('./crypto');
-const { formatCoins, formatResultLine, formatTime, sleep } = require('./utils');
+const { formatCoins, formatResultLine, formatTime, sleep, sendResilient } = require('./utils');
 
 // Pause between back-to-back accounts in one sweep (one IP hammering MTOP
 // for N sessions in the same second looks botty and shortens session life).
@@ -274,18 +274,15 @@ function getScheduleInfo() {
 }
 
 /**
- * Send a message via the bot
+ * Send a message via the bot — resilient to transient Telegram failures
+ * (single attempt used to drop scheduled results silently on 429/502).
  */
 async function notify(chatId, text) {
   if (!botInstance) {
     console.log(`[notify ${chatId}] ${text}`);
     return;
   }
-  try {
-    await botInstance.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-  } catch (err) {
-    console.error(`Failed to notify ${chatId}:`, err.message);
-  }
+  await sendResilient(botInstance, String(chatId), text);
 }
 
 module.exports = {
