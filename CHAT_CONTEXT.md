@@ -345,3 +345,16 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Verified with 5 synthetic cases (file-based, no secrets): switched-login allowed,
   same-user refresh blocked, legacy no-identity same-tk blocked, differing/partial
   pastes allowed. `node --check` clean; restarted, clean boot; user can re-paste now.
+
+### 2026-09-26 — Guard v2 was still wrong, user WAS right (proof + real fix)
+- CORRECTION: user pasted full cookies in chat; field-by-field compare vs stored #2
+  (booleans only, values never printed) proved `x_user`/`x_alimid` DIFFER while
+  `_tb_token_`/`_m_h5_tk`/`cna` match — real account switch, and `_tb_token_` is
+  device-bound too, so v2 (cookie2/unb/_tb_token_ list) false-blocked the same way.
+  Apology owed: the switch was real.
+- Real fix (`src/bot.js`): fingerprint = `x_user` (from `xman_us_f`, fallback
+  `xman_us_t`) + `x_alimid` (from `aep_usuc_f`); device tokens never identify.
+  Verified with real cookie shapes: switched user allowed, same-user refresh blocked.
+- SECURITY: that chat paste burned the session — user must change password / log out
+  web sessions FIRST (kills it), then export fresh cookies and `/addaccount` in
+  Telegram only. Never paste cookies or tokens in chat again.

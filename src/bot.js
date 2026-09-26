@@ -994,21 +994,40 @@ function createBot() {
 
     // Duplicate-session guard: pasting the same account's cookies twice creates
     // two bot accounts fighting over one AliExpress session (double sweeps,
-    // confusing reports). Fingerprint on USER-identity cookies (cookie2/unb/
-    // _tb_token_/lgc/tracknick) — never on _m_h5_tk alone: that token is
-    // device/time-bound, identical across different logins in one browser and
-    // rotating over time, so it false-blocks switched accounts and misses real
-    // duplicates. Values are never printed.
+    // confusing reports). Fingerprint on USER-bound fields only: x_user (login id
+    // inside xman_us_f / xman_us_t) + x_alimid (inside aep_usuc_f). Proven live
+    // that _m_h5_tk, _tb_token_ and cna are DEVICE-bound (identical across two
+    // different logins in one browser) — they must never identify a user.
+    // Values are never printed.
     const pickCookie = (jar, name) =>
       ((jar.match(new RegExp("(?:^|;\\s*)" + name + "=([^;]+)")) || [])[1] || "");
+    const subField = (jar, cookie, key) => {
+      const v = pickCookie(jar, cookie);
+      if (!v) return "";
+      for (const p of v.split("&")) {
+        const i = p.indexOf("=");
+        if (i > 0 && p.slice(0, i) === key) {
+          try {
+            return decodeURIComponent(p.slice(i + 1).replace(/\+/g, " "));
+          } catch {
+            return p.slice(i + 1);
+          }
+        }
+      }
+      return "";
+    };
     const sessionFp = (jar) => {
-      const parts = ["cookie2", "unb", "_tb_token_", "lgc", "tracknick"].map((n) =>
-        pickCookie(jar, n),
-      );
-      return { tk: pickCookie(jar, "_m_h5_tk"), parts, hasId: parts.some(Boolean) };
+      const xUser =
+        subField(jar, "xman_us_f", "x_user") || subField(jar, "xman_us_t", "x_user");
+      const alimid = subField(jar, "aep_usuc_f", "x_alimid");
+      return { tk: pickCookie(jar, "_m_h5_tk"), xUser, alimid, hasId: !!xUser };
     };
     const isSameSession = (x, y) => {
-      if (x.hasId && y.hasId) return x.parts.join("|") === y.parts.join("|");
+      if (x.hasId && y.hasId) {
+        if (x.xUser !== y.xUser) return false;
+        if (x.alimid && y.alimid && x.alimid !== y.alimid) return false;
+        return true;
+      }
       if (!x.hasId && !y.hasId && x.tk && y.tk) return x.tk === y.tk; // legacy fallback
       return false; // can't tell (partial paste?) — don't block, collection verifies
     };
