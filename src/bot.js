@@ -1024,6 +1024,16 @@ function createBot() {
         }
         if (isSameSession(newFp, sessionFp(oldCookies))) {
           pendingAddAccount.delete(chatId);
+          // Diagnostics only: match mode + cookie counts, NEVER values.
+          try {
+            const oldFp = sessionFp(oldCookies);
+            console.log(
+              `[dup-guard] block add: matches #${a.id} via ` +
+                (newFp.hasId && oldFp.hasId ? "identity" : "fallback-tk") +
+                ` (newN=${cookies.split(";").length} newHasId=${newFp.hasId} ` +
+                `oldHasId=${oldFp.hasId})`,
+            );
+          } catch {}
           bot.sendMessage(
             chatId,
             [
