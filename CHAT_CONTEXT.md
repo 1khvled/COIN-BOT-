@@ -327,3 +327,11 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   after `.env` exists, else crash-loop. NOTE: gate applies to the admin too — join the
   channel yourself or `/start` shows the join prompt.
 - Recommendation recorded: keep a backup copy of `data/bot.db` + `.env` (USB/disk).
+
+### 2026-09-26 — Bot restarted after wipe (user pasted token in chat)
+- `.env` completed (prefilled chat ID/secret/TZ/channel vars + user-supplied token),
+  task restarted: rtnode alive, clean boot (DB fresh/empty, polling active). First sweep
+  ran immediately (no anchor) and logged nothing — correct with zero accounts, 1h backoff.
+- Remaining user steps: `/start`, re-add accounts via `/addaccount`, join own channel
+  (subscription gate). TOKEN SECURITY: token now sits in this chat transcript — user
+  must revoke via @BotFather and replace it in `.env` via Notepad (never via chat).
