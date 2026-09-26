@@ -499,7 +499,7 @@ function createBot() {
 
     const progressMsg = await bot.sendMessage(
       chatId,
-      `⏳ Collecting for *${accounts.length} account(s)*...`,
+      `⏳ Collecting for *${accounts.length} account(s)*... (~1 min each, leave it running)`,
       { parse_mode: "Markdown" },
     );
 

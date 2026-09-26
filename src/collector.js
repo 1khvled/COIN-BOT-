@@ -14,7 +14,7 @@ const { chromium } = require("playwright");
 const { sleep } = require("./utils");
 
 const RETRY_COUNT = 2;
-const RETRY_DELAY_MS = 30 * 1000;
+const RETRY_DELAY_MS = 15 * 1000;
 const NAV_TIMEOUT = 45000;
 const ACTION_TIMEOUT = 20000;
 const RENDER_TIMEOUT = 15000;
@@ -327,7 +327,7 @@ async function claimReadyTasks(page, opts = {}) {
       if (/earn more/i.test(txt)) {
         console.log("[collector] Opening earn-more board...");
         await signBtn.click({ force: true, timeout: 10000 }).catch(() => {});
-        await page.waitForTimeout(3000);
+        await waitForAny(page, CLAIM_BUTTON_SELECTORS, 4000);
       }
     }
   } catch {}
@@ -358,8 +358,7 @@ async function claimReadyTasks(page, opts = {}) {
 
     if (!clicked) break; // no more claim buttons
 
-    await page.waitForTimeout(2500);
-    const balAfter = await readBalanceStable(page);
+    const balAfter = await readBalanceAfterChange(page, balBefore, 4500);
     const gained = balAfter - balBefore;
     if (gained > 0) {
       claimed.push({ source: clickedText || "Task", coins: gained, balanceAfter: balAfter });
@@ -405,12 +404,31 @@ async function extractBalance(page) {
   }
 }
 
-/** Read balance twice (1.5s apart) and return the last stable value. */
+/** Read balance twice (1.2s apart) and return the last stable value. */
 async function readBalanceStable(page) {
   const first = await extractBalance(page);
-  await sleep(1500);
+  await sleep(1200);
   const second = await extractBalance(page);
   return second > 0 ? second : first;
+}
+
+/**
+ * Fast balance read after a click: polls every 500ms and returns as soon as the
+ * balance moves past the baseline (credit is usually visible in 1-2s), instead
+ * of sleeping a blind 3-5s first. Falls back to the last seen value on timeout.
+ */
+async function readBalanceAfterChange(page, baseline, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let last = await extractBalance(page);
+  while (Date.now() < deadline) {
+    if (last > baseline) break;
+    await sleep(500);
+    const v = await extractBalance(page);
+    if (v > 0) last = v;
+  }
+  await sleep(700); // let the digit-roll animation settle
+  const fin = await extractBalance(page);
+  return fin > 0 ? fin : last;
 }
 
 /**
@@ -538,6 +556,7 @@ async function collectAll(cookies, opts = {}) {
   let sources = [];
 
   let browser = null;
+  const t0 = Date.now();
   try {
     const lc = await launchContext();
     browser = lc.browser;
@@ -690,9 +709,7 @@ async function collectAll(cookies, opts = {}) {
       // accounts — the reward needs a second, modal-scoped click).
       const clicked = await clickCollect();
       console.log(`[collector] signButton before: "${(await signButtonText()).slice(0, 60)}" balBefore=${balBefore}`);
-      await page.waitForTimeout(5000);
-
-      let balAfter = await readBalanceStable(page);
+      let balAfter = await readBalanceAfterChange(page, balBefore, 6000);
       let btnAfter = await collectBtnVisible();
       // NOTE: re-evaluate page state fresh — never reuse pre-click flags here.
       let doneAfter = (await alreadyDone(page)) || (await isTodayChecked(page));
@@ -715,8 +732,7 @@ async function collectAll(cookies, opts = {}) {
         // at a +1 popup — try the modal claim first.
         const modalOpen = await clickModalClaim();
         if (modalOpen) {
-          await page.waitForTimeout(3000);
-          const balAfterModal = await readBalanceStable(page);
+          const balAfterModal = await readBalanceAfterChange(page, balAfter, 5000);
           if (balAfterModal > balAfter) {
             reportGained(balAfterModal);
             balance = balAfterModal;
@@ -749,8 +765,7 @@ async function collectAll(cookies, opts = {}) {
         // here (that hit a +1 task button and misreported it as Daily Sign-in).
         // Only click modal-scoped claim buttons.
         const modalClicked = await clickModalClaim();
-        await page.waitForTimeout(4000);
-        const balAfter2 = await readBalanceStable(page);
+        const balAfter2 = await readBalanceAfterChange(page, balBefore, 6000);
         const doneAfter2 = (await alreadyDone(page)) || (await isTodayChecked(page));
         if (balAfter2 > 0) balance = Math.max(balance, balAfter2);
         console.log(`[collector] retry: modalClicked=${modalClicked} balBefore=${balBefore} balAfter2=${balAfter2} done=${doneAfter2}`);
@@ -845,6 +860,10 @@ async function collectAll(cookies, opts = {}) {
     await browser?.close().catch(() => {});
   }
 
+  console.log(
+    `[collector] finished in ${Math.round((Date.now() - t0) / 1000)}s ` +
+      `(total=${totalCoins} expired=${expired})`
+  );
   return { totalCoins, results, expired, balance, sources };
 }
 

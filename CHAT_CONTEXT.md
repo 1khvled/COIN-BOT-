@@ -372,3 +372,15 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Verified with fake-bot test: 429-then-success delivers after ~1.5s; always-fail
   returns false without throwing. `node --check` clean; restarted, clean boot.
   Re-run `/collect` — worst case the failure is now in the log, not invisible.
+
+### 2026-09-26 — Collection too slow (user: TOOK SO LONG)
+- Measured from DB: ~40s/account (two accounts ≈ 1.5–2.5 min + 15s stagger).
+  Bulk of it was blind fixed sleeps. Replaced with polling (`src/collector.js`):
+  new `readBalanceAfterChange()` returns the moment the balance moves (500ms polls +
+  0.7s settle) instead of sleep-3-to-5s-then-read; same for modal retry, per-task
+  claims, and earn-more board open (waits for buttons up to 4-5s, returns early).
+  Retry backoff 30s→15s, stable-read gap 1.5s→1.2s. Expected: fast pages finish in
+  roughly half the time; slow pages unchanged (timeouts are the backstop).
+- Observability: `collectAll` logs `finished in Xs (total=N)` per run; progress
+  message now says `~1 min each, leave it running`.
+- Verified: `node --check` clean, poll-logic unit test pass, restarted clean boot.
