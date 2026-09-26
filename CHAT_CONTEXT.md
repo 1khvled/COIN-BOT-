@@ -306,3 +306,24 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   (now requires a visible Collect/Claim button inside), button-text noise (digit-strip
   head + 4-letter-word filters).
 - Verified: `node --check` clean; restarted (clean boot); temp scripts/artifacts removed.
+
+### 2026-09-26 — Local project wiped, rebuilt from GitHub (user: bot did not work at start)
+- Found: project dir contained ONLY `logs/bot.log` — `src/`, `data/` (incl. `bot.db`
+  with all 4 accounts), `.env`, `.git`, `node_modules`, launchers all gone; no copy in
+  Recycle Bin or anywhere on disk; no rtnode/wscript process; task `RuntimeHelper`
+  firing at nothing. Only the locked-open `bot.log` survived — consistent with a
+  manual select-all-delete while the bot was running, not with anything the agent did
+  (agent only ever deleted `data/debug/inspect-*.png` + its own temp script).
+- User's own commit `9879064` (channel-subscription gate `@DzAliexpress0` + 24-48h deal
+  push, on top of `579ad0d`) reviewed before running: no new deps, fail-open
+  `getChatMember` (returns true on API error), no startup crash vector. Rebuilt from
+  it: fresh clone → original path, `bot.log` preserved, `npm install` clean,
+  `node --check` clean on bot/collector/scheduler/db, Chromium cache intact (no
+  download needed). Folder left VISIBLE (hidden+system attrs dropped — they helped
+  hide the project from its owner).
+- NOT recoverable: `data/bot.db` + `.env` were gitignored and exist nowhere → all 4
+  accounts + secrets must be recreated (user runs `setup.bat`, re-pastes token/chat ID,
+  re-adds accounts via `/addaccount`). Bot stays DOWN until then — task restart only
+  after `.env` exists, else crash-loop. NOTE: gate applies to the admin too — join the
+  channel yourself or `/start` shows the join prompt.
+- Recommendation recorded: keep a backup copy of `data/bot.db` + `.env` (USB/disk).
