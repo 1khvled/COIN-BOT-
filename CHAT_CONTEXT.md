@@ -401,3 +401,14 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Still open (user-side, not code): rotate the chat-exposed BOT_TOKEN, join own
   channel (gate fail-opens with 400 since bot isn't channel admin), keep adding
   accounts as sessions expire. Next scheduled sweep will exercise collect+delivery.
+
+### 2026-09-27 — Full shakedown, all pass + balance display fix (CEO: use it, test bugs)
+- Ran everything safe to run: Telegram getMe/getUpdates (token valid, read-only,
+  zero spam), 8 utils edge cases, 8 db checks (incl. CRUD roundtrip on a fake chat,
+  removed after; count restored), and a FULL headless sweep of both real accounts
+  (real Chromium + pages, no Telegram): 62s total (25s + 21s + 15s stagger — matches
+  model), both `done`, no errors. New `finished in Xs` timing logs confirmed live.
+- One bug found by the shakedown: scheduler printed `Balance: 0 coins` when the
+  balance was unreadable (guarded `!== undefined` instead of `> 0` like bot.js) —
+  fixed to match (`src/scheduler.js`).
+- Verified: `node --check` clean; restarted clean boot. Temp scripts removed.

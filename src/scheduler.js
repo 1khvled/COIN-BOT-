@@ -91,7 +91,7 @@ async function runCollectionForChat(chatId) {
         lines.push(formatResultLine(r.task, r.coins, r.success, r.message));
       }
       lines.push(`\n💰 Total: ${formatCoins(result.totalCoins)}`);
-      if (result.balance !== undefined) {
+      if (result.balance > 0) {
         lines.push(`🏦 Balance: ${formatCoins(result.balance)}`);
       }
     }
