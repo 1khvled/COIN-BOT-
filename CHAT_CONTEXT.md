@@ -412,3 +412,21 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   balance was unreadable (guarded `!== undefined` instead of `> 0` like bot.js) —
   fixed to match (`src/scheduler.js`).
 - Verified: `node --check` clean; restarted clean boot. Temp scripts removed.
+
+### 2026-10-01 — The "+1 vs 10" mystery solved (server truth) + balance read was broken
+- Asked AliExpress directly (read-only API capture, no clicks). `coin.channel.sign.list`
+  per account: #2 ss and #5 = **1 coin every day** (activityId 2322001); #3 MAIN =
+  10/15/40 (activityId 2742001). The "+1" was never a bug — those accounts are on the
+  1-coin tier. MAIN's streak has since reset to day 3 (was 29).
+- Task board verdict: 5-coin browse missions are `componentType: "app"` trackers.
+  Headless web completion = **zero credit** (6 tasks, 153s, tasks stayed joined=0,
+  balance unmoved). Kept the implementation behind `CLAIM_TASKS=true`, OFF by default —
+  enabling it by default would burn 2.5 min/account for nothing.
+- REAL BUG found while testing: `extractBalance()` had been returning 0 for every
+  account (inner digit-roll class renamed upstream). Fixed to scan the roll + its
+  descendants for the `translateY` offset and to keep only OUTERMOST roll elements
+  (the content element also matches "digitRoll" — naive matching doubled every digit:
+  115 -> 111155). Verified 115/55/5, matching the API exactly; also added the
+  `query.user.coin.num` API probe as authoritative balance + now reported on
+  already-done runs.
+- Sweep time now 13s/account (was ~40s). Verified live, restarted clean boot.

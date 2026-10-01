@@ -298,101 +298,220 @@ function checkInDoneFromDataFlag(checkIn) {
   return /(done|claimed|completed|checked|1|true|finish)/i.test(s);
 }
 
-// Task claim buttons (English + Arabic)
-const CLAIM_BUTTON_SELECTORS = [
-  'button:has-text("Collect")',
-  'button:has-text("Claim")',
-  'button:has-text("Get")',
-  'button:has-text("Receive")',
-  'button:has-text("اجمع")',
-  'button:has-text("استلام")',
-  'button:has-text("احصل")',
-];
+// ─── Task board (earn-more) ────────────────────────────────
+// The earn-more board exposes its task list through
+// `mtop.aliexpress.interactive.task.delivery.query`. Clicking #signButton
+// only *sometimes* opens it headlessly, so the API response — not the click —
+// is the trigger. Tasks are time-based ("browse this page for 15s"), which is
+// why the old "click the first Collect button" loop earned nothing: there is
+// no button, the reward arrives from dwell time on the task's own page.
+const TASK_API_RE = /interactive\.task\.delivery\.query/;
+const BALANCE_API_RE = /query\.user\.coin\.num/;
 
-/**
- * Best-effort claiming of ready task rewards on the earn-more board.
- * Each claim is verified against the balance (delta = coins gained).
- * Capped to avoid excessive automation; failures are reported, not fatal.
- */
-async function claimReadyTasks(page, opts = {}) {
-  const claimed = [];
-  const MAX_CLAIMS = opts.maxClaims || 5;
+// Safety limits: dwell-based automation must stay bounded.
+const TASK_MAX_PER_RUN = Number(process.env.TASK_MAX_PER_RUN || 8);
+const TASK_BUDGET_MS = Number(process.env.TASK_BUDGET_MS || 6 * 60 * 1000);
+const DWELL_DEFAULT_MS = 15000;
+const DWELL_BUFFER_MS = 3000;
 
-  // Open the earn-more board first (the #signButton becomes "Earn more coins"
-  // after check-in; when not checked in it's the check-in button itself).
+/** Parse the task-delivery payload into a flat, actionable task list. */
+function parseTaskList(text) {
+  let j;
   try {
-    const signBtn = page.locator("#signButton").first();
-    if (await signBtn.isVisible().catch(() => false)) {
-      const txt = (await signBtn.innerText().catch(() => "")).trim();
-      if (/earn more/i.test(txt)) {
-        console.log("[collector] Opening earn-more board...");
-        await signBtn.click({ force: true, timeout: 10000 }).catch(() => {});
-        await waitForAny(page, CLAIM_BUTTON_SELECTORS, 4000);
-      }
-    }
-  } catch {}
-
-  let balBefore = await readBalanceStable(page);
-
-  for (let i = 0; i < MAX_CLAIMS; i++) {
-    // Scroll through the page so lazy-loaded tasks become visible
-    await page.evaluate(() => {
-      window.scrollBy(0, 400);
-    }).catch(() => {});
-    await page.waitForTimeout(800);
-
-    let clicked = false;
-    let clickedText = "";
-    for (const s of CLAIM_BUTTON_SELECTORS) {
-      const btn = page.locator(s).first();
-      if (!(await btn.isVisible().catch(() => false))) continue;
-      const txt = (await btn.innerText().catch(() => "")).trim();
-      if (/^#?\s*[\d.,]+$/.test(txt)) continue; // safety: never click bare numbers
+    j = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const result = j && j.data && j.data.result;
+  if (!Array.isArray(result)) return null;
+  const out = [];
+  for (const group of result) {
+    for (const m of group.materials || []) {
+      const interest = (m.interests && m.interests[0]) || {};
+      let dwellMs = DWELL_DEFAULT_MS;
       try {
-        await btn.click({ force: true, timeout: 10000 });
-        clicked = true;
-        clickedText = txt;
-        break;
+        const bc = JSON.parse(m.behaviorConfig || "{}");
+        if (Number.isFinite(bc.time)) dwellMs = bc.time * 1000;
       } catch {}
-    }
-
-    if (!clicked) break; // no more claim buttons
-
-    const balAfter = await readBalanceAfterChange(page, balBefore, 4500);
-    const gained = balAfter - balBefore;
-    if (gained > 0) {
-      claimed.push({ source: clickedText || "Task", coins: gained, balanceAfter: balAfter });
-      balBefore = balAfter;
-    } else {
-      // Nothing gained — button probably required a precondition; stop here
-      break;
+      out.push({
+        taskId: m.taskId,
+        coins: interest.interestNum ?? m.interestNum ?? 0,
+        timesLimit: m.timesLimit ?? 1,
+        timesJoined: m.timesJoined ?? 0,
+        url: m.materialUrl || null,
+        dwellMs,
+        title: (m.mainTitle || m.secondTitle || "Task").trim(),
+        // Click-count tasks ("tap 3 items") need interaction we don't do.
+        needsClicks: Number.isFinite(m.countThreshold),
+      });
     }
   }
+  return out;
+}
 
-  await page.evaluate(() => {
-    window.scrollTo(0, 0);
-  }).catch(() => {});
+/**
+ * Attach live probes to a page: authoritative coin balance (from AliExpress's
+ * own API, far more reliable than digit-roll DOM parsing) and the latest task
+ * list. Returns the shared state object.
+ */
+function attachProbes(page, state) {
+  page.on("response", async (res) => {
+    const url = res.url();
+    try {
+      if (BALANCE_API_RE.test(url)) {
+        const j = JSON.parse(await res.text());
+        const n = j && j.data && j.data.data && j.data.data.userCoinsNum;
+        if (Number.isFinite(n)) state.apiBalance = n;
+      } else if (TASK_API_RE.test(url)) {
+        const list = parseTaskList(await res.text());
+        if (list) {
+          state.tasks = list;
+          state.tasksAt = Date.now();
+        }
+      }
+    } catch {}
+  });
+  return state;
+}
+
+/** Open the earn-more board and wait for the task list to arrive. */
+async function openTaskBoard(page, state) {
+  const signBtn = page.locator("#signButton").first();
+  if (!(await signBtn.isVisible().catch(() => false))) return [];
+  const txt = (await signBtn.innerText().catch(() => "")).trim();
+  if (!/earn more/i.test(txt)) return []; // not claimed yet, or already on board
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const had = state.tasks && state.tasks.length;
+    const seenAt = state.tasksAt || 0;
+    await signBtn.click({ force: true, timeout: 10000 }).catch(() => {});
+    // Wait for a FRESH task list (click may be a no-op headlessly).
+    const deadline = Date.now() + 12000;
+    while (Date.now() < deadline) {
+      if (state.tasksAt && state.tasksAt > seenAt && (!had || state.tasks.length)) {
+        return state.tasks;
+      }
+      await sleep(500);
+    }
+    if (state.tasks && state.tasks.length) return state.tasks;
+  }
+  return [];
+}
+
+/**
+ * Claim the earn-more task board. Each task is completed by opening its own
+ * page and dwelling for the server-specified time; every claim is verified
+ * against the balance delta, so we only ever report coins that actually landed.
+ * Bounded by TASK_MAX_PER_RUN and TASK_BUDGET_MS.
+ */
+async function claimEarnedTasks(ctx, page, state, opts = {}) {
+  const claimed = [];
+  // OFF by default, and that's a measured decision, not a guess: the board's
+  // tasks are `componentType: "app"` browse-tracker missions. Completing them
+  // headlessly on the web produced ZERO credits across 6 tasks / 153s (all
+  // tasks stayed joined=0, balance unmoved) — the app beacons never fire in a
+  // plain browser. Enable with CLAIM_TASKS=true if AliExpress ever changes it.
+  if (process.env.CLAIM_TASKS !== "true") return claimed;
+  if (opts.skipTasks) return claimed;
+
+  const tasks = await openTaskBoard(page, state);
+  if (!tasks.length) {
+    console.log("[collector] no task list available");
+    return claimed;
+  }
+  const pending = tasks.filter(
+    (t) =>
+      t.coins > 0 &&
+      t.url &&
+      !t.needsClicks &&
+      t.timesJoined < t.timesLimit,
+  );
+  console.log(
+    `[collector] task board: ${pending.length} claimable of ${tasks.length}`,
+  );
+
+  let done = 0;
+  let spentMs = 0;
+  for (const task of pending) {
+    if (done >= TASK_MAX_PER_RUN || spentMs > TASK_BUDGET_MS) break;
+
+    const repeats = Math.max(1, Math.min(task.timesLimit - task.timesJoined, 3));
+    for (let r = 0; r < repeats; r++) {
+      if (done >= TASK_MAX_PER_RUN || spentMs > TASK_BUDGET_MS) break;
+
+      const before = state.apiBalance ?? (await extractBalance(page));
+      const dwell = task.dwellMs + DWELL_BUFFER_MS;
+      const t0 = Date.now();
+      let ok = false;
+      try {
+        const tp = await ctx.newPage();
+        attachProbes(tp, state);
+        await tp
+          .goto(task.url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT })
+          .catch(() => {});
+        await tp.waitForTimeout(dwell);
+        await tp.close().catch(() => {});
+        ok = true;
+      } catch (err) {
+        console.log(`[collector] task ${task.taskId} failed: ${err.message}`);
+      }
+      spentMs += Date.now() - t0;
+      if (!ok) continue;
+
+      // Balance updates asynchronously after dwell — give it a moment.
+      const deadline = Date.now() + 8000;
+      let after = state.apiBalance ?? before;
+      while (Date.now() < deadline && after <= before) {
+        await sleep(700);
+        after = state.apiBalance ?? after;
+      }
+      const gained = after - before;
+      if (gained > 0) {
+        claimed.push({ source: task.title, coins: gained, balanceAfter: after });
+        console.log(`[collector] task claimed: ${task.title} +${gained} (${after})`);
+      } else {
+        console.log(`[collector] task ${task.taskId} (${task.title}) credited nothing`);
+        break; // this task won't pay again
+      }
+      done++;
+    }
+  }
   return claimed;
 }
 
 /**
  * Best-effort coin balance extraction.
  * The balance is rendered as "digit roll" containers: each roll holds digits
- * 0-9 and is shifted with `translateY(-12.48px * digit)`. Read the offsets.
+ * 0-9 and is shifted with `translateY(-12.48px * digit)`.
+ *
+ * NOTE (2026-10-01): the inner element's class name changed upstream, so
+ * looking for a hard-coded `aecoin-digitRollContent` silently returned 0 for
+ * every account. The offset now lives on whatever descendant carries it, so we
+ * scan the roll and its descendants instead of trusting class names.
  */
 async function extractBalance(page) {
   try {
     return await page.evaluate(() => {
-      const rolls = [
-        ...document.querySelectorAll('[class*="aecoin-digitRollContainer"]'),
-      ];
+      const all = [...document.querySelectorAll('[class*="digitRoll"]')];
+      // Keep only the OUTERMOST roll elements — the inner content element also
+      // matches "digitRoll", and counting both doubles every digit.
+      const rolls = all.filter(
+        (el) => !el.parentElement || !el.parentElement.closest('[class*="digitRoll"]'),
+      );
       if (!rolls.length) return 0;
       let digits = "";
       for (const r of rolls) {
-        const content = r.querySelector('[class*="aecoin-digitRollContent"]');
-        if (!content) return 0;
-        const style = content.getAttribute("style") || "";
-        const m = style.match(/translateY\((-?[\d.]+)px\)/);
+        // The offset may sit on the roll itself or on any descendant.
+        let m = null;
+        const candidates = [r, ...r.querySelectorAll("*")];
+        for (const el of candidates) {
+          const style = (el.getAttribute && el.getAttribute("style")) || "";
+          const mm = style.match(/translateY\(\s*(-?[\d.]+)px\s*\)/);
+          if (mm) {
+            m = mm;
+            break;
+          }
+        }
         if (!m) return 0;
         const digit = Math.round(Math.abs(parseFloat(m[1])) / 12.48) % 10;
         digits += String(digit);
@@ -563,6 +682,10 @@ async function collectAll(cookies, opts = {}) {
 
     await lc.ctx.addCookies(mergeLocaleCookies(parseCookies(cookies)));
     const page = await lc.ctx.newPage();
+
+    // Live probes: authoritative balance (API) + task board list.
+    const state = { apiBalance: null, tasks: null, tasksAt: 0 };
+    attachProbes(page, state);
 
     // First visit main site to establish session
     await page
@@ -800,8 +923,9 @@ async function collectAll(cookies, opts = {}) {
     }
 
     // ── Task rewards (earn-more board) ─────────────────────
-    // Claim ready one-click rewards; each verified by balance delta.
-    const taskClaims = await claimReadyTasks(page, opts);
+    // API-driven: open the board, then complete each task by dwelling on its
+    // own page for the server-specified time. Every claim verified by balance.
+    const taskClaims = await claimEarnedTasks(lc.ctx, page, state, opts);
     for (const c of taskClaims) {
       totalCoins += c.coins;
       balance = Math.max(balance, c.balanceAfter || 0);
@@ -814,7 +938,15 @@ async function collectAll(cookies, opts = {}) {
     }
 
     // ── Source breakdown for the report ────────────────────
-    const finalBal = balance || (await extractBalance(page));
+    // Final balance: API probe is authoritative, digit rolls are the fallback
+    // (they render a beat after the SPA paints, so retry once before giving up).
+    let finalBal = balance || state.apiBalance || 0;
+    if (!finalBal) {
+      await waitForAny(page, ['[class*="aecoin-digitRollContainer"]'], 5000);
+      finalBal = await extractBalance(page);
+    }
+    if (state.apiBalance > finalBal) finalBal = state.apiBalance;
+    if (finalBal > 0) balance = finalBal; // report the balance even on already-done runs
     const srcList = [];
     if (finalBal > 0) srcList.push({ source: "Balance", coins: finalBal });
 
