@@ -430,3 +430,12 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   `query.user.coin.num` API probe as authoritative balance + now reported on
   already-done runs.
 - Sweep time now 13s/account (was ~40s). Verified live, restarted clean boot.
+
+### 2026-10-02 — Account tiers graduate: #5 moved to the 25/30/40 activity
+- User screenshot proved 3rd acc (#5) now shows Today=25. Server API confirms the
+  account SWITCHED activities: past days signed on 2322001 (1-coin tier, correct at
+  the time), today+future on 2742001 (25/30/40 — same activity as MAIN). Tiers are
+  assigned server-side and rise with streak/loyalty; past +1s were all legitimate.
+- No code change needed: the claim flow is activity-agnostic (clicks #signButton,
+  verifies the delta, so 25 credits as +25). Proof = today's sweep or manual
+  `/collect` now.
