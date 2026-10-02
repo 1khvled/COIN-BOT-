@@ -439,3 +439,8 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - No code change needed: the claim flow is activity-agnostic (clicks #signButton,
   verifies the delta, so 25 credits as +25). Proof = today's sweep or manual
   `/collect` now.
+
+### 2026-10-02 — Claimed the 25 live on user request (proof, not theory)
+- Ran #5 through the bot's own pipeline (collect + DB log + Telegram note):
+  `Daily Sign-in +25, balance 5 -> 30, in 15s`, delivered to Telegram. The bot
+  collects whatever the day's activity offers — 1 on 1-coin days, 25 today.
