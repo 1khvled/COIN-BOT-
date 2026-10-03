@@ -445,6 +445,11 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   `Daily Sign-in +25, balance 5 -> 30, in 15s`, delivered to Telegram. The bot
   collects whatever the day's activity offers — 1 on 1-coin days, 25 today.
 
+### 2026-10-03 — MAIN test-claim: +30, not 70 (user expected 70)
+- Manual pipeline claim for #3 MAIN: `Daily Sign-in +30, balance 610 -> 640,
+  in 19s`, delivered to Telegram. No 70 on offer today — the calendar, not the
+  bot, sets the number (cycle showed 30 for today, 40s after).
+
 ### 2026-10-03 — Forced Canada storefront (user demand) + `COIN_REGION` setting
 - User insists Canada region = max coins. Implemented as `COIN_REGION` env
   (validated 2-letter code, default US; local `.env` set to CA; documented in
