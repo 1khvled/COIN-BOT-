@@ -14,7 +14,7 @@
 ## 2. Paths & runtime identity (must-know for any future session)
 | Item | Value |
 |---|---|
-| Project | `C:\Users\<you>\Desktop\Projects\TELEGRAM\aliexpress-coin-bot` |
+| Project | `D:\Projects\TELEGRAM\aliexpress-coin-bot` (moved from `%USERPROFILE%\Desktop\Projects` on 2026-10-03, see timeline) |
 | Entry | `src\index.js` (banner → `db.init` → `createBot` → `initScheduler` → catch-up) |
 | DB | `data/bot.db` (sql.js; tables: `accounts`, `collection_logs`, `settings`) |
 | Logs | `logs\bot.log` (UTF-8, bot holds it open; PowerShell `>>` once polluted it with UTF-16 — decode tails as UTF-8 bytes) |
@@ -444,3 +444,11 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
 - Ran #5 through the bot's own pipeline (collect + DB log + Telegram note):
   `Daily Sign-in +25, balance 5 -> 30, in 15s`, delivered to Telegram. The bot
   collects whatever the day's activity offers — 1 on 1-coin days, 25 today.
+
+### 2026-10-03 — Projects moved to D:, task repointed, bot restarted
+- Whole `Desktop\Projects` tree moved to `D:\Projects` (README_MOVED.md left
+  behind). Bot was DOWN: `RuntimeHelper` action still pointed at the old
+  `start-bg.vbs` path. Repointed action + working dir to
+  `D:\Projects\TELEGRAM\aliexpress-coin-bot`, restarted: clean boot, polling
+  active (a burst of transient 502/ETIMEDOUT at boot, tolerated as usual).
+- CHAT_CONTEXT §2 path updated. Folder left visible (no hidden attrs).
