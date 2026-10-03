@@ -445,6 +445,16 @@ $bytes = Get-Content "logs\bot.log" -Encoding Byte -Raw; ([System.Text.Encoding]
   `Daily Sign-in +25, balance 5 -> 30, in 15s`, delivered to Telegram. The bot
   collects whatever the day's activity offers — 1 on 1-coin days, 25 today.
 
+### 2026-10-03 — Forced Canada storefront (user demand) + `COIN_REGION` setting
+- User insists Canada region = max coins. Implemented as `COIN_REGION` env
+  (validated 2-letter code, default US; local `.env` set to CA; documented in
+  `.env.example`). Single code path (`localeCookies()` used by collect + debug).
+- Counter-evidence on record: bot already forced US on all accounts while tiers
+  differed (MAIN 40s vs ss 1s), so cookie region likely doesn't set the tier —
+  account profile / streak does. Live A/B was inconclusive (page throttled the
+  sign API after repeated probe loads: only `channel.init` fired). First real
+  CA collection = next scheduled sweep; report will show if #2's calendar moved.
+
 ### 2026-10-03 — Projects moved to D:, task repointed, bot restarted
 - Whole `Desktop\Projects` tree moved to `D:\Projects` (README_MOVED.md left
   behind). Bot was DOWN: `RuntimeHelper` action still pointed at the old

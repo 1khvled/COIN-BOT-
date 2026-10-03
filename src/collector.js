@@ -24,13 +24,22 @@ const COIN_URL = "https://m.aliexpress.com/p/coin-index/index.html";
 const MOBILE_UA =
   "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
-// Forced-English cookies — applied AFTER the user's cookies so they override
-const LOCALE_COOKIES = [
-  ["aeep_hng", "en_US"],
-  ["aep_usuc_f", "site=glo&region=US&b_locale=en_US"],
-  ["intl_locale", "en_US"],
-  ["xman_us_f", "x_l=0&x_locale=en_US"],
-];
+// Forced locale cookies — applied AFTER the user's cookies so they override.
+// COIN_REGION (default "US") sets the storefront region, e.g. "CA" for Canada.
+// Format: 2-letter ISO code, case-insensitive, anything else falls back to US.
+function getCoinRegion() {
+  const r = String(process.env.COIN_REGION || "US").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(r) ? r : "US";
+}
+function localeCookies() {
+  const region = getCoinRegion();
+  return [
+    ["aeep_hng", "en_US"],
+    ["aep_usuc_f", `site=glo&region=${region}&b_locale=en_US`],
+    ["intl_locale", "en_US"],
+    ["xman_us_f", "x_l=0&x_locale=en_US"],
+  ];
+}
 
 // Login page detection (English + Arabic fallbacks)
 const LOGIN_SELECTORS = [
@@ -83,7 +92,7 @@ function parseCookies(str) {
 /** Merge forced locale cookies over the user's cookie list (user wins on duplicates). */
 function mergeLocaleCookies(cookieList) {
   const byName = new Map(cookieList.map((c) => [c.name, c]));
-  for (const [name, value] of LOCALE_COOKIES) {
+  for (const [name, value] of localeCookies()) {
     byName.set(name, { name, value, domain: ".aliexpress.com", path: "/" });
   }
   return [...byName.values()];
